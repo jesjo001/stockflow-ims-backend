@@ -9,29 +9,35 @@ import { StatusCodes } from 'http-status-codes';
 import mongoose from 'mongoose';
 
 export class SaleService {
+  // Helper to conditionally apply session to queries
+  private static withSession<T>(query: any, session: any): any {
+    return session ? query.session(session) : query;
+  }
+
   static async createSale(data: any, userId: string, branchId: string, tenantId: string) {
-    let session: any = null;
+    let session: mongoose.ClientSession | null = null;
     try {
       // Try to create a session for transaction support
       try {
         session = await mongoose.startSession();
-        session.startTransaction();
+        await session.startTransaction();
       } catch (txError) {
         // Transactions not supported (standalone MongoDB), continue without session
         session = null;
-        console.warn('⚠️  Transactions not available (standalone MongoDB), using fallback mode');
+        console.log('⚠️  Transactions not available (standalone MongoDB), using fallback mode');
       }
       const { customer, items, discountType, discountValue, paymentMethod, amountPaid } = data;
       
+      console.log('Creating sale with data:', data);
       let subtotal = 0;
       let taxAmount = 0;
       
       // 1. Validate all products and stock
       for (const item of items) {
-        const product = await Product.findById(item.product).session(session || undefined);
+        const product = await this.withSession(Product.findById(item.product), session);
         if (!product) throw new ApiError(StatusCodes.NOT_FOUND, `Product not found: ${item.product}`);
 
-        const stock = await StockLevel.findOne({ product: item.product, branch: branchId }).session(session || undefined);
+        const stock = await this.withSession(StockLevel.findOne({ product: item.product, branch: branchId }), session);
         if (!stock || stock.quantity < item.quantity) {
           throw new ApiError(StatusCodes.BAD_REQUEST, `Insufficient stock for product ${item.product}`);
         }
@@ -75,7 +81,7 @@ export class SaleService {
 
       // 5. Update Customer if credit sale
       if (customer && paymentStatus !== 'paid') {
-        const cust = await Customer.findById(customer).session(session || undefined);
+        const cust = await this.withSession(Customer.findById(customer), session);
         if (cust) {
           cust.creditBalance += (total - amountPaid);
           cust.totalPurchases += total;

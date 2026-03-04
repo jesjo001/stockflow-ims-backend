@@ -4,6 +4,70 @@ import { ApiResponse } from '../utils/ApiResponse';
 import { asyncHandler } from '../utils/asyncHandler';
 import { StatusCodes } from 'http-status-codes';
 import { ApiError } from '../utils/ApiError';
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl as generateAwsSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { env } from '../config/env';
+
+// Initialize S3 client
+const s3 = new S3Client({
+  region: env.AWS_REGION || 'eu-north-1',
+  credentials: {
+    accessKeyId: env.AWS_ACCESS_KEY_ID || '',
+    secretAccessKey: env.AWS_SECRET_ACCESS_KEY || '',
+  },
+});
+
+export const getSignedUrl = asyncHandler(async (req: Request, res: Response) => {
+  const { key, content_type } = req.body;
+  
+  if (!key) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'Key is required');
+  }
+  
+  if (!content_type) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'Content type is required');
+  }
+  
+  if (!env.AWS_S3_BUCKET_NAME) {
+    throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, 'S3 bucket not configured');
+  }
+
+  const command = new PutObjectCommand({
+    Bucket: env.AWS_S3_BUCKET_NAME,
+    Key: key,
+    ContentType: content_type,
+  });
+
+  const signedUrl = await generateAwsSignedUrl(s3, command, {
+    expiresIn: 60 * 5, // 5 minutes
+  });
+
+  res.status(StatusCodes.OK).json(ApiResponse.success({ signedUrl }, 'Signed URL generated successfully'));
+});
+
+// Get signed URL for viewing (reading) an image from S3
+export const getViewSignedUrl = asyncHandler(async (req: Request, res: Response) => {
+  const { key } = req.body;
+  
+  if (!key) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'Key is required');
+  }
+  
+  if (!env.AWS_S3_BUCKET_NAME) {
+    throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, 'S3 bucket not configured');
+  }
+
+  const command = new GetObjectCommand({
+    Bucket: env.AWS_S3_BUCKET_NAME,
+    Key: key,
+  });
+
+  const signedUrl = await generateAwsSignedUrl(s3, command, {
+    expiresIn: 60 * 60, // 1 hour
+  });
+
+  res.status(StatusCodes.OK).json(ApiResponse.success({ signedUrl }, 'View signed URL generated successfully'));
+});
 
 export const uploadImages = asyncHandler(async (req: Request, res: Response) => {
   if (!req.files || (req.files as Express.Multer.File[]).length === 0) {

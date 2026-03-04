@@ -8,6 +8,11 @@ import { StatusCodes } from 'http-status-codes';
 import mongoose from 'mongoose';
 
 export class PurchaseOrderService {
+  // Helper to conditionally apply session to queries
+  private static withSession<T>(query: any, session: any): any {
+    return session ? query.session(session) : query;
+  }
+
   static async createPurchaseOrder(data: any, userId: string, tenantId: string) {
     const { supplier, branch, items, expectedDelivery, notes } = data;
     
@@ -48,18 +53,18 @@ export class PurchaseOrderService {
   }
 
   static async receiveGoods(poId: string, receivedItems: any[], userId: string, tenantId: string) {
-    let session: any = null;
+    let session: mongoose.ClientSession | null = null;
     try {
       // Try to create a session for transaction support
       try {
         session = await mongoose.startSession();
-        session.startTransaction();
+        await session.startTransaction();
       } catch (txError) {
         // Transactions not supported (standalone MongoDB), continue without session
         session = null;
         console.warn('⚠️  Transactions not available (standalone MongoDB), using fallback mode');
       }
-      const po = await PurchaseOrder.findById(poId).session(session || undefined);
+      const po = await this.withSession(PurchaseOrder.findById(poId), session);
       if (!po) throw new ApiError(StatusCodes.NOT_FOUND, 'Purchase Order not found');
 
       for (const rItem of receivedItems) {
@@ -68,7 +73,7 @@ export class PurchaseOrderService {
           const qtyDiff = rItem.quantity;
           item.receivedQuantity += qtyDiff;
           
-          let stock = await StockLevel.findOne({ product: item.product, branch: po.branch }).session(session || undefined);
+          let stock = await this.withSession(StockLevel.findOne({ product: item.product, branch: po.branch }), session);
           if (!stock) {
             stock = new StockLevel({ product: item.product, branch: po.branch, quantity: 0 });
           }

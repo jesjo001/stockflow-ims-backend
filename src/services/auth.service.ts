@@ -16,12 +16,11 @@ export class AuthService {
    */
   static async registerSuperAdmin(userData: any) {
     let session: any = null;
-
     try {
       // Try to create a session for transaction support
       try {
         session = await mongoose.startSession();
-        session.startTransaction();
+        await session.startTransaction();
       } catch (txError) {
         // Transactions not supported (standalone MongoDB), continue without session
         session = null;
@@ -104,12 +103,11 @@ export class AuthService {
    */
   static async register(userData: any, adminTenantId: string, tenantName: string) {
     let session: any = null;
-
     try {
       // Try to create a session for transaction support
       try {
         session = await mongoose.startSession();
-        session.startTransaction();
+        await session.startTransaction();
       } catch (txError) {
         // Transactions not supported (standalone MongoDB), continue without session
         session = null;

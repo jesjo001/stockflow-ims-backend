@@ -7,7 +7,7 @@ export const createProductSchema = z.object({
     barcode: z.string().optional(),
     description: z.string().optional(),
     category: z.string().min(1),
-    unit: z.string().min(1),
+    unit: z.string().optional(),
     costPrice: z.number().positive(),
     sellingPrice: z.number().positive(),
     taxRate: z.number().min(0).optional(),

@@ -5,13 +5,18 @@ import { StatusCodes } from 'http-status-codes';
 import mongoose from 'mongoose';
 
 export class StockService {
+  // Helper to conditionally apply session to queries
+  private static withSession<T>(query: any, session: any): any {
+    return session ? query.session(session) : query;
+  }
+
   static async adjustStock(data: any, userId: string, tenantId: string) {
-    let session: any = null;
+    let session: mongoose.ClientSession | null = null;
     try {
       // Try to create a session for transaction support
       try {
         session = await mongoose.startSession();
-        session.startTransaction();
+        await session.startTransaction();
       } catch (txError) {
         // Transactions not supported (standalone MongoDB), continue without session
         session = null;
@@ -19,7 +24,7 @@ export class StockService {
       }
       const { product, branch, quantity, type, note, reference } = data;
       
-      let stockLevel = await StockLevel.findOne({ product, branch }).session(session || undefined);
+      let stockLevel = await this.withSession(StockLevel.findOne({ product, branch }), session);
       
       if (!stockLevel) {
         stockLevel = new StockLevel({ product, branch, quantity: 0 });

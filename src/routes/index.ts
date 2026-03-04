@@ -10,6 +10,7 @@ import supplierRoutes from './supplier.routes';
 import userRoutes from './user.routes';
 import purchaseOrderRoutes from './purchaseOrder.routes';
 import serviceRoutes from './service.routes';
+import uploadRoutes from './upload.routes';
 
 const router = Router();
 
@@ -24,5 +25,6 @@ router.use('/suppliers', supplierRoutes);
 router.use('/users', userRoutes);
 router.use('/purchase-orders', purchaseOrderRoutes);
 router.use('/services', serviceRoutes);
+router.use('/upload', uploadRoutes);
 
 export default router;

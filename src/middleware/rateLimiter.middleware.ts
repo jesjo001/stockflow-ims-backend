@@ -8,7 +8,9 @@ let store: any;
 if (env.REDIS_URL) {
   try {
     // Dynamically require to avoid hard dependency
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const RedisStore = require('rate-limit-redis');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const Redis = require('ioredis');
     const redisClient = new Redis(env.REDIS_URL, {
       enableReadyCheck: false,

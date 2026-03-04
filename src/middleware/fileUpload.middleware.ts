@@ -1,4 +1,4 @@
-import { S3Client } from '@aws-sdk/client-s3';
+import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import multer from 'multer';
 import multerS3 from 'multer-s3';
 import path from 'path';
@@ -45,3 +45,23 @@ export const upload = multer({
     },
   }),
 });
+
+// Function to delete an image from S3
+export const deleteImage = async (fileKey: string): Promise<void> => {
+  try {
+    if (!env.AWS_S3_BUCKET_NAME) {
+      throw new Error("S3 bucket name is not configured");
+    }
+    
+    const params = {
+      Bucket: env.AWS_S3_BUCKET_NAME,
+      Key: fileKey,
+    };
+
+    await s3.send(new DeleteObjectCommand(params));
+    console.log(`File deleted successfully: ${fileKey}`);
+  } catch (error) {
+    console.error("Error deleting file:", error);
+    throw new Error("Failed to delete image");
+  }
+};
