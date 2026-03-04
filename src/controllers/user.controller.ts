@@ -24,6 +24,11 @@ export const createUser = asyncHandler(async (req: Request, res: Response) => {
     tenantId: req.user.tenantId,
   };
 
+  // If no branch is provided, assign the creator's branch
+  if (!userData.branch && req.user.branch) {
+    userData.branch = req.user.branch;
+  }
+
   const user = await User.create(userData);
   res.status(StatusCodes.CREATED).json(
     ApiResponse.success(user, 'User created successfully', StatusCodes.CREATED)

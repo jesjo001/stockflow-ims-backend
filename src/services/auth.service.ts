@@ -8,6 +8,7 @@ import { generatePasswordResetToken, hashPasswordResetToken, getPasswordResetExp
 import { StatusCodes } from 'http-status-codes';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
+import { startTransactionSession } from '../utils/mongoTransaction';
 
 export class AuthService {
   /**
@@ -17,15 +18,7 @@ export class AuthService {
   static async registerSuperAdmin(userData: any) {
     let session: any = null;
     try {
-      // Try to create a session for transaction support
-      try {
-        session = await mongoose.startSession();
-        await session.startTransaction();
-      } catch (txError) {
-        // Transactions not supported (standalone MongoDB), continue without session
-        session = null;
-        console.warn('⚠️  Transactions not available (standalone MongoDB), using fallback mode');
-      }
+      session = await startTransactionSession();
 
       // Generate default tenant name and code
       const tenantName = userData.tenantName || `${userData.firstName}`;
@@ -56,7 +49,7 @@ export class AuthService {
 
       // 4. Create default main branch for tenant
       const defaultBranchCode = `MAIN_${tenant[0]._id.toString().slice(-6).toUpperCase()}`;
-      await Branch.create([{
+      const defaultBranch = await Branch.create([{
         tenantId: tenant[0]._id,
         name: 'Default Main Branch',
         code: defaultBranchCode,
@@ -69,7 +62,11 @@ export class AuthService {
         timezone: 'UTC',
       }]);
 
-      // 5. Generate tokens
+      // 5. Assign default branch to user and update
+      user[0].branch = defaultBranch[0]._id;
+      await user[0].save({ validateBeforeSave: false });
+
+      // 6. Generate tokens
       const accessToken = generateAccessToken(user[0]._id.toString(), tenant[0]._id.toString());
       const refreshToken = generateRefreshToken(user[0]._id.toString(), tenant[0]._id.toString());
       
@@ -104,15 +101,7 @@ export class AuthService {
   static async register(userData: any, adminTenantId: string, tenantName: string) {
     let session: any = null;
     try {
-      // Try to create a session for transaction support
-      try {
-        session = await mongoose.startSession();
-        await session.startTransaction();
-      } catch (txError) {
-        // Transactions not supported (standalone MongoDB), continue without session
-        session = null;
-        console.warn('⚠️  Transactions not available (standalone MongoDB), using fallback mode');
-      }
+      session = await startTransactionSession();
 
       // Generate password reset token
       const { hashedToken, plainToken } = generatePasswordResetToken();

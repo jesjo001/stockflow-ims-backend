@@ -1,11 +1,10 @@
-import { Product, IProductDocument } from '../models/Product.model';
+import { Product } from '../models/Product.model';
 import { StockLevel } from '../models/StockLevel.model';
 import { StockMovement } from '../models/StockMovement.model';
 import { generateSKU } from '../utils/generateSKU';
 import { generateBarcode } from '../utils/generateBarcode';
 import { ApiError } from '../utils/ApiError';
 import { StatusCodes } from 'http-status-codes';
-import mongoose from 'mongoose';
 import { cache } from '../utils/cache';
 
 export class ProductService {
@@ -21,7 +20,7 @@ export class ProductService {
 
     const product = await Product.create(productData);
     
-    const stockLevel = await StockLevel.create({
+    await StockLevel.create({
       product: product._id,
       branch: data.branch,
       tenantId: tenantId,
@@ -75,8 +74,24 @@ export class ProductService {
       lean: true
     }); 
 
-   if(!search) await cache.set(cacheKey, result, 60);
-    return result;
+    // Populate stock levels for each product
+    const productsWithStock = await Promise.all(
+      result.docs.map(async (product: any) => {
+        const stockLevel = await StockLevel.findOne({
+          product: product._id,
+          branch: product.branch._id || product.branch,
+          tenantId
+        }).lean();
+        return {
+          ...product,
+          stock: stockLevel?.quantity || 0,
+          status: this.getStockStatus(stockLevel?.quantity || 0, product.reorderPoint)
+        };
+      })
+    );
+
+   if(!search) await cache.set(cacheKey, { ...result, docs: productsWithStock }, 60);
+    return { ...result, docs: productsWithStock };
   }
 
   static async getProductById(id: string, tenantId: string) {
@@ -88,16 +103,57 @@ export class ProductService {
     const product = await Product.findOne({ _id: id, tenantId }).populate(['category', 'branch']).lean();
     if (!product) throw new ApiError(StatusCodes.NOT_FOUND, 'Product not found');
     
-    await cache.set(cacheKey, product, 300);
-    return product;
+    // Fetch stock level
+    const stockLevel = await StockLevel.findOne({
+      product: product._id,
+      branch: product.branch._id || product.branch,
+      tenantId
+    }).lean();
+
+    const productWithStock = {
+      ...product,
+      stock: stockLevel?.quantity || 0,
+      status: this.getStockStatus(stockLevel?.quantity || 0, product.reorderPoint)
+    };
+
+    await cache.set(cacheKey, productWithStock, 300);
+    return productWithStock;
   }
 
-  static async updateProduct(id: string, data: any, tenantId: string) {
+  static async updateProduct(id: string, data: any, tenantId: string, userId?: string) {
     const product = await Product.findOne({ _id: id, tenantId });
     if (!product) throw new ApiError(StatusCodes.NOT_FOUND, 'Product not found');
 
-    Object.assign(product, data);
+    const { quantity, ...productData } = data;
+
+    // Update product fields
+    Object.assign(product, productData);
     await product.save();
+
+    // Handle stock level updates if quantity is provided
+    if (quantity !== undefined) {
+      const stockLevel = await StockLevel.findOne({ product: id, tenantId });
+      if (stockLevel) {
+        const previousQty = stockLevel.quantity;
+        stockLevel.quantity = quantity;
+        stockLevel.lastUpdated = new Date();
+        await stockLevel.save();
+
+        // Create stock movement record if quantity changed
+        if (previousQty !== quantity) {
+          await StockMovement.create({
+            product: id,
+            branch: product.branch,
+            tenantId: tenantId,
+            type: 'adjustment',
+            quantity: quantity - previousQty,
+            previousQty: previousQty,
+            newQty: quantity,
+            createdBy: userId || product.createdBy
+          });
+        }
+      }
+    }
 
     await cache.del(`product_${id}_${tenantId}`);
     await cache.del('all_products');
@@ -112,5 +168,11 @@ export class ProductService {
 
     await cache.del(`product_${id}_${tenantId}`);
     await cache.del('all_products');
+  }
+
+  private static getStockStatus(quantity: number, reorderPoint: number): string {
+    if (quantity === 0) return 'out-of-stock';
+    if (quantity <= reorderPoint) return 'low-stock';
+    return 'in-stock';
   }
 }

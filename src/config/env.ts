@@ -26,6 +26,12 @@ const envSchema = z.object({
   EMAIL_FROM: z.string().default('noreply@stockflow.com'),
   CLIENT_URL: z.string().default('http://localhost:5173'),
   BCRYPT_ROUNDS: z.string().transform(Number).default(12),
+  // Flutterwave Configuration
+  FLUTTERWAVE_SECRET_KEY: z.string().optional(),
+  FLUTTERWAVE_SECRET_TEST_KEY: z.string().optional(),
+  FLUTTERWAVE_PUBLIC_KEY: z.string().optional(),
+  FLUTTERWAVE_TEST_PUBLIC_KEY: z.string().optional(),
+  FLUTTERWAVE_WEBHOOK_SECRET: z.string().optional(),
 });
 
 const _env = envSchema.safeParse(process.env);

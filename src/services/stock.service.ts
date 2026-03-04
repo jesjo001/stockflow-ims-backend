@@ -3,6 +3,7 @@ import { StockMovement } from '../models/StockMovement.model';
 import { ApiError } from '../utils/ApiError';
 import { StatusCodes } from 'http-status-codes';
 import mongoose from 'mongoose';
+import { startTransactionSession } from '../utils/mongoTransaction';
 
 export class StockService {
   // Helper to conditionally apply session to queries
@@ -13,15 +14,7 @@ export class StockService {
   static async adjustStock(data: any, userId: string, tenantId: string) {
     let session: mongoose.ClientSession | null = null;
     try {
-      // Try to create a session for transaction support
-      try {
-        session = await mongoose.startSession();
-        await session.startTransaction();
-      } catch (txError) {
-        // Transactions not supported (standalone MongoDB), continue without session
-        session = null;
-        console.warn('⚠️  Transactions not available (standalone MongoDB), using fallback mode');
-      }
+      session = await startTransactionSession();
       const { product, branch, quantity, type, note, reference } = data;
       
       let stockLevel = await this.withSession(StockLevel.findOne({ product, branch }), session);

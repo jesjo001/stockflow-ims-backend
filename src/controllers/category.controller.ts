@@ -5,6 +5,10 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { StatusCodes } from 'http-status-codes';
 
 export const createCategory = asyncHandler(async (req: Request, res: Response) => {
+  // Automatically assign the user's branch if not provided
+  if (!req.body.branch && req.user.branch) {
+    req.body.branch = req.user.branch;
+  }
   const category = await CategoryService.createCategory(req.body, req.user.tenantId.toString());
   res.status(StatusCodes.CREATED).json(ApiResponse.success(category, 'Category created successfully', StatusCodes.CREATED));
 });

@@ -1,4 +1,4 @@
-import { Sale, ISaleDocument } from '../models/Sale.model';
+import { Sale } from '../models/Sale.model';
 import { Product } from '../models/Product.model';
 import { StockLevel } from '../models/StockLevel.model';
 import { StockMovement } from '../models/StockMovement.model';
@@ -7,28 +7,20 @@ import { generateInvoiceNumber } from '../utils/generateInvoiceNumber';
 import { ApiError } from '../utils/ApiError';
 import { StatusCodes } from 'http-status-codes';
 import mongoose from 'mongoose';
+import { startTransactionSession } from '../utils/mongoTransaction';
 
 export class SaleService {
   // Helper to conditionally apply session to queries
-  private static withSession<T>(query: any, session: any): any {
+  private static withSession(query: any, session: any): any {
     return session ? query.session(session) : query;
   }
 
   static async createSale(data: any, userId: string, branchId: string, tenantId: string) {
     let session: mongoose.ClientSession | null = null;
     try {
-      // Try to create a session for transaction support
-      try {
-        session = await mongoose.startSession();
-        await session.startTransaction();
-      } catch (txError) {
-        // Transactions not supported (standalone MongoDB), continue without session
-        session = null;
-        console.log('⚠️  Transactions not available (standalone MongoDB), using fallback mode');
-      }
+      session = await startTransactionSession();
       const { customer, items, discountType, discountValue, paymentMethod, amountPaid } = data;
       
-      console.log('Creating sale with data:', data);
       let subtotal = 0;
       let taxAmount = 0;
       
@@ -37,9 +29,44 @@ export class SaleService {
         const product = await this.withSession(Product.findById(item.product), session);
         if (!product) throw new ApiError(StatusCodes.NOT_FOUND, `Product not found: ${item.product}`);
 
-        const stock = await this.withSession(StockLevel.findOne({ product: item.product, branch: branchId }), session);
-        if (!stock || stock.quantity < item.quantity) {
-          throw new ApiError(StatusCodes.BAD_REQUEST, `Insufficient stock for product ${item.product}`);
+        // Validate product has required price info
+        if (!product.sellingPrice || product.sellingPrice <= 0) {
+          throw new ApiError(StatusCodes.BAD_REQUEST, `Product ${product.name} does not have a valid selling price set`);
+        }
+
+        // Get stock level - try exact branch match first, then fallback to any branch for the product
+        let stock = await this.withSession(
+          StockLevel.findOne({ product: item.product, branch: branchId, tenantId }),
+          session
+        );
+        
+        // Fallback: if no stock for this branch, check if product stock exists in any branch
+        if (!stock) {
+          stock = await this.withSession(
+            StockLevel.findOne({ product: item.product, tenantId }),
+            session
+          );
+          
+          // If still no stock, create one for this branch with 0 quantity
+          if (!stock) {
+            const [newStock] = await StockLevel.create([{
+              product: item.product,
+              branch: branchId,
+              tenantId,
+              quantity: 0,
+            }], session ? { session } : {});
+            stock = newStock;
+          }
+        }
+        
+        // Final check - stock should never be null at this point
+        if (!stock) {
+          throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, `Failed to acquire stock record for product ${item.product}`);
+        }
+        
+        // Check if sufficient stock
+        if (stock.quantity < item.quantity) {
+          throw new ApiError(StatusCodes.BAD_REQUEST, `Insufficient stock for product ${product.name}. Available: ${stock.quantity}, Requested: ${item.quantity}`);
         }
 
         item.unitPrice = product.sellingPrice;
@@ -49,15 +76,18 @@ export class SaleService {
         subtotal += (product.sellingPrice * item.quantity);
         taxAmount += item.taxAmount;
         
-        // 2. Deduct stock
+        // 2. Deduct stock from the stock level that was found
         const previousQty = stock.quantity;
         stock.quantity -= item.quantity;
+        stock.lastUpdated = new Date();
         await stock.save(session ? { session } : {});
         
-        // 3. Create stock movement
+        // 3. Create stock movement - use the branch from the stock record found
+        const stockBranchId = stock.branch;
         await StockMovement.create([{
           product: item.product,
-          branch: branchId,
+          branch: stockBranchId,
+          tenantId,
           type: 'sale',
           quantity: -item.quantity,
           previousQty,
@@ -69,14 +99,20 @@ export class SaleService {
 
       // 4. Calculate final totals
       let discountAmount = 0;
-      if (discountType === 'percentage') {
+      if (discountType === 'percentage' && discountValue) {
         discountAmount = (subtotal * (discountValue / 100));
-      } else {
+      } else if (discountValue) {
         discountAmount = discountValue;
       }
 
       const total = subtotal + taxAmount - discountAmount;
       const change = Math.max(0, amountPaid - total);
+      
+      // Validate calculations - ensure no NaN or Infinity values
+      if (!isFinite(total) || !isFinite(change) || isNaN(total) || isNaN(change)) {
+        throw new ApiError(StatusCodes.BAD_REQUEST, `Invalid sale calculation. Total: ${total}, Change: ${change}. Please verify all product prices are set correctly.`);
+      }
+
       const paymentStatus = amountPaid >= total ? 'paid' : (amountPaid > 0 ? 'partial' : 'credit');
 
       // 5. Update Customer if credit sale
@@ -118,7 +154,7 @@ export class SaleService {
       if (session) {
         try {
           await session.abortTransaction();
-        } catch (abortError) {
+        } catch {
           // Ignore abort errors
         }
       }

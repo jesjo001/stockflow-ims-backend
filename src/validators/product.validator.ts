@@ -14,6 +14,8 @@ export const createProductSchema = z.object({
     mainImage: z.string().optional(),
     images: z.array(z.string()).optional(),
     branch: z.string().min(1),
+    quantity: z.number().min(0).optional(),
+    reorderPoint: z.number().min(0).optional(),
   }),
 });
 

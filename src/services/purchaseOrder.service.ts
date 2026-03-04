@@ -6,6 +6,7 @@ import { generatePONumber } from '../utils/generatePONumber';
 import { ApiError } from '../utils/ApiError';
 import { StatusCodes } from 'http-status-codes';
 import mongoose from 'mongoose';
+import { startTransactionSession } from '../utils/mongoTransaction';
 
 export class PurchaseOrderService {
   // Helper to conditionally apply session to queries
@@ -55,15 +56,7 @@ export class PurchaseOrderService {
   static async receiveGoods(poId: string, receivedItems: any[], userId: string, tenantId: string) {
     let session: mongoose.ClientSession | null = null;
     try {
-      // Try to create a session for transaction support
-      try {
-        session = await mongoose.startSession();
-        await session.startTransaction();
-      } catch (txError) {
-        // Transactions not supported (standalone MongoDB), continue without session
-        session = null;
-        console.warn('⚠️  Transactions not available (standalone MongoDB), using fallback mode');
-      }
+      session = await startTransactionSession();
       const po = await this.withSession(PurchaseOrder.findById(poId), session);
       if (!po) throw new ApiError(StatusCodes.NOT_FOUND, 'Purchase Order not found');
 

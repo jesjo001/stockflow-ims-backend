@@ -103,7 +103,7 @@ export const getProduct = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const updateProduct = asyncHandler(async (req: Request, res: Response) => {
-  const product = await ProductService.updateProduct(String(req.params.id), req.body, req.user.tenantId.toString());
+  const product = await ProductService.updateProduct(String(req.params.id), req.body, req.user.tenantId.toString(), req.user._id.toString());
   res.status(StatusCodes.OK).json(ApiResponse.success(product, 'Product updated successfully'));
 });
 

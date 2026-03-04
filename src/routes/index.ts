@@ -11,6 +11,7 @@ import userRoutes from './user.routes';
 import purchaseOrderRoutes from './purchaseOrder.routes';
 import serviceRoutes from './service.routes';
 import uploadRoutes from './upload.routes';
+import paymentRoutes from './payment.routes';
 
 const router = Router();
 
@@ -26,5 +27,6 @@ router.use('/users', userRoutes);
 router.use('/purchase-orders', purchaseOrderRoutes);
 router.use('/services', serviceRoutes);
 router.use('/upload', uploadRoutes);
+router.use('/payments', paymentRoutes);
 
 export default router;
