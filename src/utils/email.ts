@@ -39,7 +39,7 @@ class EmailService {
     } else {
       // Use failsafe mode (development without SMTP)
       logger.warn('⚠️  SMTP not configured. Using failsafe email mode (emails logged only)');
-      this.createFailsafeTransporter();
+      // this.createFailsafeTransporter();
     }
   }
 

@@ -16,7 +16,11 @@ export const createService = asyncHandler(async (req: Request, res: Response) =>
 
 export const getServices = asyncHandler(async (req: Request, res: Response) => {
   const { page = 1, limit = 10, ...filters } = req.query;
-  const result = await (Service as any).paginate({ ...filters, branch: req.user.branch, tenantId: req.user.tenantId }, { page, limit, sort: { createdAt: -1 } });
+  // Allow super_admin to filter by a specific branch via query param; fall back to the user's own branch
+  const branchFilter = (filters.branch as string) || req.user.branch;
+  const query: Record<string, unknown> = { ...filters, tenantId: req.user.tenantId };
+  if (branchFilter) query.branch = branchFilter;
+  const result = await (Service as any).paginate(query, { page, limit, sort: { createdAt: -1 } });
   res.status(StatusCodes.OK).json(ApiResponse.success(result, 'Services retrieved successfully'));
 });
 

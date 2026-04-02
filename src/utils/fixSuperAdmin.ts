@@ -6,7 +6,6 @@ import { env } from '../config/env';
 import { logger } from '../config/logger';
 
 // Explicitly load .env file for standalone script execution
-// @ts-expect-error: dynamic require is used for path resolution in some environments
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 async function fixSuperAdmin(email: string, newPassword: string) {

@@ -11,7 +11,7 @@ export const paymentValidator = {
       redirectUrl: z.string().url('Invalid redirect URL').optional(),
       paymentMethod: z.enum(['card', 'bank_transfer', 'ussd', 'mobile_money', 'qr', 'payattitude']).default('card'),
       saleId: z.string().optional(),
-      meta: z.record(z.any()).optional(),
+      meta: z.record(z.string(), z.any()).optional(),
     }),
   }),
 

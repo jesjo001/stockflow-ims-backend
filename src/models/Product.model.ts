@@ -13,6 +13,7 @@ export interface IProductDocument extends Document {
   costPrice: number;
   sellingPrice: number;
   taxRate: number;
+  mainImage?: string;
   images: string[];
   hasVariants: boolean;
   variants: any[];
@@ -64,7 +65,7 @@ const productSchema = new Schema<IProductDocument>({
 // Text search index (sku and barcode indexes are created by unique: true)
 productSchema.index({ name: 'text', description: 'text' });
 
-productSchema.virtual('profitMargin').get(function() {
+productSchema.virtual('profitMargin').get(function(this: IProductDocument) {
   if (this.sellingPrice && this.costPrice) {
     return ((this.sellingPrice - this.costPrice) / this.sellingPrice) * 100;
   }

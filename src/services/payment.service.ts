@@ -136,7 +136,7 @@ export class PaymentService {
         return {
           ...payment.toObject(),
           paymentLink: response.data.data.link,
-        } as IPaymentDocument & { paymentLink: string };
+        } as unknown as IPaymentDocument & { paymentLink: string };
       } else {
         payment.status = 'failed';
         await payment.save();

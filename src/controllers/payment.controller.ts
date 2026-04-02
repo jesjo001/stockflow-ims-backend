@@ -110,7 +110,7 @@ export class PaymentController {
     const { paymentId } = req.params;
     const tenantId = req.tenantId!;
 
-    const payment = await PaymentService.getPaymentById(paymentId, tenantId);
+    const payment = await PaymentService.getPaymentById(paymentId as string, tenantId);
 
     return res.status(StatusCodes.OK).json(
       ApiResponse.success(payment, 'Payment retrieved successfully')
@@ -136,7 +136,7 @@ export class PaymentController {
     const { paymentId } = req.params;
     const tenantId = req.tenantId!;
 
-    const paymentLink = await PaymentService.getPaymentLink(paymentId, tenantId);
+    const paymentLink = await PaymentService.getPaymentLink(paymentId as string, tenantId);
 
     return res.status(StatusCodes.OK).json(
       ApiResponse.success({ paymentLink }, 'Payment link generated successfully')

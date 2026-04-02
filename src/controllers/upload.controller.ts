@@ -16,8 +16,7 @@ export const uploadUrl = async (req: Request, res: Response): Promise<Response |
       logger.error(err);
       return res.status(500).send({
         status: "error",
-        //@ts-expect-error: err is unknown
-        message: err?.message as string,
+        message: (err as any)?.message as string,
       });
     }
   }
@@ -40,8 +39,7 @@ export const getUrl = async (req: Request, res: Response): Promise<Response | vo
     logger.error(err);
     return res.status(500).send({
       status: "error",
-      //@ts-expect-error: err is unknown
-      message: err?.message as string,
+      message: (err as any)?.message as string,
     });
   }
 };

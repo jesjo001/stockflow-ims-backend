@@ -5,39 +5,37 @@ import { logger } from './logger';
 export const connectDB = async () => {
   try {
     const isProduction = process.env.NODE_ENV === 'production';
-    
+
     const options: mongoose.ConnectOptions = {
-      // Connection pooling for VPS/cPanel
-      maxPoolSize: isProduction ? 5 : 10, // Smaller pool for constrained environments
-      minPoolSize: isProduction ? 2 : 1,
-      
-      // Timeouts optimized for hosted environments
-      serverSelectionTimeoutMS: 10000,
+      // Minimal pool for memory-constrained cPanel hosting
+      maxPoolSize: 3,
+      minPoolSize: 1,
+
+      // Conservative timeouts
+      serverSelectionTimeoutMS: 15000,
       socketTimeoutMS: 45000,
-      
-      // Query optimization
-      directConnection: false, // Use connection string topology
-      
-      // Memory optimization
+      connectTimeoutMS: 15000,
+
+      // Reduce memory overhead
+      maxIdleTimeMS: 30000,       // Close idle connections faster
+      heartbeatFrequencyMS: 30000, // Less frequent heartbeats
+
       retryWrites: true,
       retryReads: true,
-      
-      // Connection reuse
-      family: 4, // Use IPv4 only (faster than IPv6 fallback)
+      family: 4,
     };
 
     const conn = await mongoose.connect(env.MONGODB_URI, options);
     logger.info(`MongoDB Connected: ${conn.connection.host}`);
-    
-    // Connection pool monitoring (development only)
+
+    // Only monitor in dev — avoids interval overhead in production
     if (!isProduction) {
       setInterval(() => {
         const state = mongoose.connection.readyState;
         logger.debug(`MongoDB Connection State: ${state}`);
       }, 60000);
     }
-    
-    // Graceful shutdown
+
     process.on('SIGINT', async () => {
       try {
         await mongoose.connection.close();
