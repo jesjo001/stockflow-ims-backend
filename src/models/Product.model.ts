@@ -21,6 +21,7 @@ export interface IProductDocument extends Document {
   reorderPoint: number;
   reorderQuantity: number;
   isActive: boolean;
+  isVisible: boolean;
   tags: string[];
   branch: Types.ObjectId;
   createdBy: Types.ObjectId;
@@ -47,6 +48,7 @@ const productSchema = new Schema<IProductDocument>({
   reorderPoint: { type: Number, default: 10 },
   reorderQuantity: { type: Number, default: 50 },
   isActive: { type: Boolean, default: true },
+  isVisible: { type: Boolean, default: false },
   tags: [String],
   branch: { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },

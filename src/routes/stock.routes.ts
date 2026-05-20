@@ -8,6 +8,6 @@ const router = Router();
 router.use(protect);
 
 router.get('/', getStockLevels);
-router.post('/adjust', authorize('stock_clerk', 'admin', 'super_admin', 'manager'), adjustStock);
+router.post('/adjust', authorize('stock_clerk', 'admin', 'super_admin', 'manager', 'facility_manager'), adjustStock);
 
 export default router;

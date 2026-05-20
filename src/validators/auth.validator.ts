@@ -6,8 +6,9 @@ export const registerSchema = z.object({
     lastName: z.string().min(2),
     email: z.string().email(),
     password: z.string().min(8),
-    role: z.enum(['super_admin', 'admin', 'manager', 'cashier', 'stock_clerk', 'viewer']).optional(),
+    role: z.enum(['super_admin', 'admin', 'facility_manager', 'manager', 'cashier', 'stock_clerk', 'viewer']).optional(),
     branch: z.string().optional(),
+    affiliateCode: z.string().trim().min(3).max(32).optional(),
   }),
 });
 

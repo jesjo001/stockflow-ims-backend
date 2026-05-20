@@ -7,13 +7,17 @@ import { ApiError } from '../utils/ApiError';
 import { StatusCodes } from 'http-status-codes';
 
 /**
- * Register a new super admin (initial setup)
- * Only used for first super admin registration
+ * Register the initial super admin account (public signup).
+ * This endpoint creates the tenant and stores the new user as super_admin.
  */
-export const registerSuperAdmin = asyncHandler(async (req: Request, res: Response) => {
+export const registerOwner = asyncHandler(async (req: Request, res: Response) => {
+  if (req.body.role && req.body.role !== 'super_admin') {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'Invalid role for super admin registration');
+  }
+
   const data = await AuthService.registerSuperAdmin(req.body);
   res.status(StatusCodes.CREATED).json(
-    ApiResponse.success(data, 'Super Admin registered successfully', StatusCodes.CREATED)
+    ApiResponse.success(data, 'Super admin registered. Verification email sent.', StatusCodes.CREATED)
   );
 });
 
@@ -22,9 +26,14 @@ export const registerSuperAdmin = asyncHandler(async (req: Request, res: Respons
  * Only super_admin or admin can add users
  */
 export const register = asyncHandler(async (req: Request, res: Response) => {
-  // Only super_admin and admin can register users
-  if (req.user.role !== 'super_admin' && req.user.role !== 'admin') {
-    throw new ApiError(StatusCodes.FORBIDDEN, 'Only super admin or admin can register users');
+  // Only super_admin, admin, and facility_manager can register users
+  if (req.user.role !== 'super_admin' && req.user.role !== 'admin' && req.user.role !== 'facility_manager') {
+    throw new ApiError(StatusCodes.FORBIDDEN, 'Only super admin, admin, or facility manager can register users');
+  }
+
+  // Prevent any attempt to create super_admin or admin users
+  if (req.body.role === 'super_admin' || req.body.role === 'admin') {
+    throw new ApiError(StatusCodes.FORBIDDEN, 'Cannot create users with super_admin or admin roles');
   }
 
   // Get tenant name for email
@@ -83,4 +92,32 @@ export const forgotPassword = asyncHandler(async (req: Request, res: Response) =
 
   const data = await AuthService.forgotPassword(email);
   res.status(StatusCodes.OK).json(ApiResponse.success(data, 'Password reset email sent'));
+});
+
+/**
+ * Verify email using verification token from signup email
+ */
+export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
+  const { token } = req.body;
+
+  if (!token) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'Verification token is required');
+  }
+
+  const data = await AuthService.verifyEmail(token);
+  res.status(StatusCodes.OK).json(ApiResponse.success(data, 'Email verified successfully'));
+});
+
+/**
+ * Resend email verification for unverified users
+ */
+export const resendVerificationEmail = asyncHandler(async (req: Request, res: Response) => {
+  const { email } = req.body;
+
+  if (!email) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'Email is required');
+  }
+
+  const data = await AuthService.resendVerificationEmail(email);
+  res.status(StatusCodes.OK).json(ApiResponse.success(data, 'Verification email sent'));
 });

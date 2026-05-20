@@ -7,8 +7,8 @@ const router = Router();
 
 router.use(protect);
 router.get('/', getBranches);
-router.post('/', authorize('super_admin', 'admin'), createBranch);
+router.post('/', authorize('super_admin', 'admin', 'facility_manager'), createBranch);
 
-router.patch('/:id', authorize('super_admin', 'admin'), updateBranch);
+router.patch('/:id', authorize('super_admin', 'admin', 'facility_manager'), updateBranch);
 
 export default router;

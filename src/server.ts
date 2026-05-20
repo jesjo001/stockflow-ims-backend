@@ -36,9 +36,10 @@ if (cluster.isPrimary && enableCluster) {
     server.requestTimeout = 25000; // 25s request (stricter)
     server.maxHeadersCount = 100; // Limit headers to prevent memory issues
     // Socket.IO optimized for VPS/cPanel
+    const corsOrigins = env.CORS_URLS || [env.CLIENT_URL];
     const io = new Server(server, {
       cors: {
-        origin: env.CLIENT_URL,
+        origin: corsOrigins,
         methods: ['GET', 'POST'],
         credentials: true,
       },

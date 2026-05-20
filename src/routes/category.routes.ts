@@ -5,8 +5,11 @@ import { authorize } from '../middleware/rbac.middleware';
 
 const router = Router();
 
-router.use(protect);
+// Public routes
 router.get('/', getCategories);
-router.post('/', authorize('manager', 'admin', 'super_admin'), createCategory);
+
+// Protected routes
+router.use(protect);
+router.post('/', authorize('manager', 'admin', 'super_admin', 'facility_manager'), createCategory);
 
 export default router;

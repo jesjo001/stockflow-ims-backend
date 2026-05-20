@@ -11,7 +11,19 @@ export const createPurchaseOrder = asyncHandler(async (req: Request, res: Respon
 });
 
 export const getPurchaseOrders = asyncHandler(async (req: Request, res: Response) => {
-  const pos = await PurchaseOrder.find({ ...req.query, tenantId: req.user.tenantId }).populate(['supplier', 'branch', 'createdBy']);
+  const { branch, ...otherFilters } = req.query;
+  
+  // Only super_admin, admin, and facility_manager can specify a different branch
+  const canSwitchBranch = req.user?.role === 'super_admin' || req.user?.role === 'admin' || req.user?.role === 'facility_manager';
+  
+  let queryFilters: any = { ...otherFilters, tenantId: req.user.tenantId };
+  if (branch && canSwitchBranch) {
+    queryFilters.branch = branch;
+  } else if (req.user?.branch) {
+    queryFilters.branch = req.user.branch;
+  }
+  
+  const pos = await PurchaseOrder.find(queryFilters).populate(['supplier', 'branch', 'createdBy']);
   res.status(StatusCodes.OK).json(ApiResponse.success(pos, 'Purchase orders retrieved successfully'));
 });
 

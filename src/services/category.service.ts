@@ -13,13 +13,14 @@ export class CategoryService {
     return category;
   }
 
-  static async getCategories(filters: any = {}, tenantId: string) {
-    const cacheKey = `categories_${JSON.stringify(filters)}_${tenantId}`;
+  static async getCategories(filters: any = {}, tenantId?: string) {
+    const cacheKey = `categories_${JSON.stringify(filters)}_${tenantId || 'public'}`;
     const cachedData = await cache.get(cacheKey);
 
     if (cachedData) return cachedData;
 
-    const categories = await Category.find({ ...filters, tenantId }).populate('parentId').lean();
+    const query = tenantId ? { ...filters, tenantId } : filters;
+    const categories = await Category.find(query).populate('parentId').lean();
     await cache.set(cacheKey, categories, 3600); // Cache for 1 hour
     return categories;
   }

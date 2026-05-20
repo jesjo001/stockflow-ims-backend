@@ -5,6 +5,7 @@ import morgan from 'morgan';
 import compression from 'compression';
 import hpp from 'hpp';
 import routes from './routes';
+import sitemapRoutes from './routes/sitemapRoutes';
 import { errorHandler } from './middleware/errorHandler.middleware';
 import { apiLimiter } from './middleware/rateLimiter.middleware';
 import { ApiError } from './utils/ApiError';
@@ -36,8 +37,9 @@ if (env.NODE_ENV === 'development') {
 }
 
 // CORS
+const corsOrigins = env.CORS_URLS || [env.CLIENT_URL];
 app.use(cors({
-  origin: env.CLIENT_URL,
+  origin: corsOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
 }));
@@ -75,6 +77,9 @@ app.get('/health', (req, res) => {
   res.set('Cache-Control', 'no-cache, no-store');
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// SEO Routes - Sitemaps
+app.use('/', sitemapRoutes);
 
 // Routes
 app.use('/api/v1', routes);

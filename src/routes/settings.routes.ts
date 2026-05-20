@@ -8,7 +8,7 @@ const router = Router();
 router.use(protect);
 
 router.get('/', getSettings);
-router.patch('/', authorize('super_admin', 'admin'), updateSettings);
+router.patch('/', authorize('super_admin', 'admin', 'facility_manager'), updateSettings);
 router.post('/change-password', changePassword);
 
 export default router;

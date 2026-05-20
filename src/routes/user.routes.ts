@@ -7,9 +7,10 @@ const router = Router();
 
 router.use(protect);
 
-router.get('/', authorize('super_admin', 'admin'), getUsers);
-router.post('/', authorize('super_admin', 'admin'), createUser);
-router.patch('/:id', authorize('super_admin', 'admin'), updateUser);
-router.delete('/:id', authorize('super_admin'), deleteUser);
+router.get('/', authorize('super_admin', 'admin', 'facility_manager'), getUsers);
+router.post('/', authorize('super_admin', 'admin', 'facility_manager'), createUser);
+router.patch('/:id', authorize('super_admin', 'admin', 'facility_manager'), updateUser);
+router.put('/:id', authorize('super_admin', 'admin', 'facility_manager'), updateUser);
+router.delete('/:id', authorize('super_admin', 'admin', 'facility_manager'), deleteUser);
 
 export default router;

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { Settings } from '../models/Settings.model';
 import { Tenant } from '../models/Tenant.model';
 import { User } from '../models/User.model';
+import { AffiliateService } from '../services/affiliate.service';
 import { ApiResponse } from '../utils/ApiResponse';
 import { asyncHandler } from '../utils/asyncHandler';
 import { ApiError } from '../utils/ApiError';
@@ -32,6 +33,15 @@ export const getSettings = asyncHandler(async (req: Request, res: Response) => {
 /** PATCH /settings — update any settings fields */
 export const updateSettings = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = req.user.tenantId.toString();
+
+  // Check if affiliate percentage is being updated - only super_admin and facility_manager can do this
+  if (req.body.defaultAffiliatePercentage !== undefined) {
+    if (req.user.role !== 'super_admin' && req.user.role !== 'facility_manager') {
+      throw new ApiError(StatusCodes.FORBIDDEN, 'Only super admin and facility manager can update default affiliate commission percentage');
+    }
+    await AffiliateService.setDefaultAffiliatePercentage(req.body.defaultAffiliatePercentage);
+    delete req.body.defaultAffiliatePercentage; // Remove from regular settings update
+  }
 
   const settings = await Settings.findOneAndUpdate(
     { tenantId },

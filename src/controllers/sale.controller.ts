@@ -24,8 +24,19 @@ export const createSale = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const getSales = asyncHandler(async (req: Request, res: Response) => {
-  const { page = 1, limit = 10, ...filters } = req.query;
-  const result = await SaleService.getSales(filters, { page, limit }, req.user.tenantId.toString());
+  const { page = 1, limit = 10, branch, ...filters } = req.query;
+  
+  // Only super_admin, admin, and facility_manager can specify a different branch
+  const canSwitchBranch = req.user?.role === 'super_admin' || req.user?.role === 'admin' || req.user?.role === 'facility_manager';
+  
+  let queryFilters: any = { ...filters };
+  if (branch && canSwitchBranch) {
+    queryFilters.branch = branch;
+  } else if (req.user?.branch) {
+    queryFilters.branch = req.user.branch;
+  }
+  
+  const result = await SaleService.getSales(queryFilters, { page: Number(page), limit: Number(limit) }, req.user.tenantId.toString());
   res.status(StatusCodes.OK).json(ApiResponse.paginated(result.docs, {
     totalDocs: result.totalDocs,
     limit: result.limit,

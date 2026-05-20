@@ -7,8 +7,8 @@ const router = Router();
 
 router.use(protect);
 
-router.get('/', getPurchaseOrders);
-router.post('/', authorize('admin', 'super_admin', 'manager'), createPurchaseOrder);
+router.get('/', authorize('admin', 'super_admin', 'manager', 'cashier', 'stock_clerk', 'viewer', 'facility_manager'), getPurchaseOrders);
+router.post('/', authorize('admin', 'super_admin', 'manager', 'cashier', 'stock_clerk', 'facility_manager'), createPurchaseOrder);
 router.post('/:id/receive', authorize('admin', 'super_admin', 'stock_clerk'), receiveGoods);
 
 export default router;

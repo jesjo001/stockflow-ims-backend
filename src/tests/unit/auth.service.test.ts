@@ -29,8 +29,9 @@ describe('AuthService', () => {
 
     const result = await AuthService.registerSuperAdmin(userData);
     expect(result.user.email).toBe(userData.email);
-    expect(result.accessToken).toBeDefined();
-    expect(result.refreshToken).toBeDefined();
+    expect(result.requiresEmailVerification).toBe(true);
+    expect(result.user.isEmailVerified).toBe(false);
+    expect(result.message).toContain('Please verify your email');
     expect(result.tenant.name).toBe(userData.tenantName);
   });
 });

@@ -23,8 +23,15 @@ const envSchema = z.object({
   SMTP_PORT: z.string().default('587'),
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
+  API_MAIL_KEY: z.string().optional(),
+  API_MAIL_URL: z.string().default('https://mailserver.automationlounge.com/api/v1/messages/send'),
+  API_MAIL_TIMEOUT_MS: z.string().default('10000').transform(Number),
   EMAIL_FROM: z.string().default('noreply@stockflow.com'),
   CLIENT_URL: z.string().default('http://localhost:5173'),
+  CORS_URLS: z.string().optional().transform((val) => {
+    if (!val) return undefined;
+    return val.split(',').map((url) => url.trim());
+  }),
   BCRYPT_ROUNDS: z.string().transform(Number).default(12),
   // Flutterwave Configuration
   FLUTTERWAVE_SECRET_KEY: z.string().optional(),

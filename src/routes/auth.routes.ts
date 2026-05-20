@@ -1,5 +1,15 @@
 import { Router } from 'express';
-import { registerSuperAdmin, register, login, refreshToken, logout, resetPassword, forgotPassword } from '../controllers/auth.controller';
+import {
+	registerOwner,
+	register,
+	login,
+	refreshToken,
+	logout,
+	resetPassword,
+	forgotPassword,
+	verifyEmail,
+	resendVerificationEmail,
+} from '../controllers/auth.controller';
 import { validate } from '../middleware/validate.middleware';
 import { registerSchema, loginSchema } from '../validators/auth.validator';
 import { protect } from '../middleware/auth.middleware';
@@ -8,11 +18,11 @@ import { authLimiter } from '../middleware/rateLimiter.middleware';
 
 const router = Router();
 
-// Initial super admin registration (no auth required) - with validation
-router.post('/register-super-admin', authLimiter, validate(registerSchema), registerSuperAdmin);
+// Public initial super admin registration
+router.post('/register-owner', authLimiter, validate(registerSchema), registerOwner);
 
-// User registration by admin/super_admin (requires auth)
-router.post('/register', authLimiter, protect, authorize('super_admin', 'admin'), register);
+// User registration by privileged tenant admins
+router.post('/register', authLimiter, protect, authorize('super_admin', 'admin', 'facility_manager'), register);
 
 router.post('/login', authLimiter, validate(loginSchema), login);
 router.post('/refresh-token', refreshToken);
@@ -21,5 +31,9 @@ router.post('/logout', protect, logout);
 // Password reset endpoints
 router.post('/reset-password', resetPassword);
 router.post('/forgot-password', forgotPassword);
+
+// Email verification endpoints
+router.post('/verify-email', verifyEmail);
+router.post('/resend-verification-email', authLimiter, resendVerificationEmail);
 
 export default router;

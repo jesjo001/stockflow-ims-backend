@@ -87,8 +87,20 @@ export const createProduct = asyncHandler(async (req: Request, res: Response) =>
 });
 
 export const getProducts = asyncHandler(async (req: Request, res: Response) => {
-  const { page = 1, limit = 10, ...filters } = req.query;
-  const result = await ProductService.getProducts(filters, { page, limit }, req.user.tenantId.toString());
+  const { page = 1, limit = 10, branch, ...filters } = req.query;
+  const tenantId = req.user?.tenantId?.toString() || req.tenantId?.toString();
+  
+  // Only super_admin, admin, and facility_manager can specify a different branch
+  const canSwitchBranch = req.user?.role === 'super_admin' || req.user?.role === 'admin' || req.user?.role === 'facility_manager';
+  
+  let queryFilters: any = { ...filters };
+  if (branch && canSwitchBranch) {
+    queryFilters.branch = branch;
+  } else if (req.user?.branch) {
+    queryFilters.branch = req.user.branch;
+  }
+  
+  const result = await ProductService.getProducts(queryFilters, { page: Number(page), limit: Number(limit) }, tenantId);
   res.status(StatusCodes.OK).json(ApiResponse.paginated(result.docs, {
     totalDocs: result.totalDocs,
     limit: result.limit,
@@ -98,7 +110,8 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const getProduct = asyncHandler(async (req: Request, res: Response) => {
-  const product = await ProductService.getProductById(String(req.params.id), req.user.tenantId.toString());
+  const tenantId = req.user?.tenantId?.toString() || req.tenantId?.toString();
+  const product = await ProductService.getProductById(String(req.params.id), tenantId);
   res.status(StatusCodes.OK).json(ApiResponse.success(product, 'Product retrieved successfully'));
 });
 
@@ -110,4 +123,10 @@ export const updateProduct = asyncHandler(async (req: Request, res: Response) =>
 export const deleteProduct = asyncHandler(async (req: Request, res: Response) => {
   await ProductService.deleteProduct(String(req.params.id), req.user.tenantId.toString());
   res.status(StatusCodes.OK).json(ApiResponse.success(null, 'Product deleted successfully'));
+});
+
+export const toggleVisibility = asyncHandler(async (req: Request, res: Response) => {
+  const product = await ProductService.toggleVisibility(String(req.params.id), req.user.tenantId.toString());
+  const status = product.isVisible ? 'visible' : 'hidden';
+  res.status(StatusCodes.OK).json(ApiResponse.success(product, `Product is now ${status} in shop`));
 });

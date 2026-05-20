@@ -1,9 +1,14 @@
 import { Branch, IBranchDocument } from '../models/Branch.model';
 import { ApiError } from '../utils/ApiError';
 import { StatusCodes } from 'http-status-codes';
+import { enforceTenantResourceLimit, getTenantPlanLimits } from '../utils/planLimits';
 
 export class BranchService {
   static async createBranch(data: any, tenantId: string) {
+    const limits = await getTenantPlanLimits(tenantId);
+    const totalBranches = await Branch.countDocuments({ tenantId });
+    enforceTenantResourceLimit(totalBranches, limits.maxBranches, 'branches');
+
     const payload = { ...data };
 
     if (payload.manager === '') {

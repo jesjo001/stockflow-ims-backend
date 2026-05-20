@@ -27,3 +27,31 @@ export const hashPasswordResetToken = (token: string): string => {
 export const getPasswordResetExpiry = (): Date => {
   return new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 };
+
+/**
+ * Generate an email verification token
+ * Returns: hashed token (to be saved to DB), plain token (to be sent to user)
+ */
+export const generateEmailVerificationToken = (): { hashedToken: string; plainToken: string } => {
+  const plainToken = crypto.randomBytes(32).toString('hex');
+  const hashedToken = crypto.createHash('sha256').update(plainToken).digest('hex');
+
+  return {
+    plainToken,
+    hashedToken,
+  };
+};
+
+/**
+ * Hash an email verification token
+ */
+export const hashEmailVerificationToken = (token: string): string => {
+  return crypto.createHash('sha256').update(token).digest('hex');
+};
+
+/**
+ * Generate email verification expiry time (24 hours from now)
+ */
+export const getEmailVerificationExpiry = (): Date => {
+  return new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+};

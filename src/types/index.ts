@@ -1,6 +1,6 @@
 import { Types } from 'mongoose';
 
-export type Role = 'super_admin' | 'admin' | 'manager' | 'cashier' | 'stock_clerk' | 'viewer';
+export type Role = 'super_admin' | 'admin' | 'facility_manager' | 'manager' | 'cashier' | 'stock_clerk' | 'viewer';
 
 export interface IUser {
   _id: Types.ObjectId;
@@ -10,6 +10,7 @@ export interface IUser {
   role: Role;
   tenantId: Types.ObjectId;
   branch?: Types.ObjectId;
+  affiliateId?: Types.ObjectId;
   isActive: boolean;
 }
 

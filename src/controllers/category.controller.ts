@@ -14,6 +14,19 @@ export const createCategory = asyncHandler(async (req: Request, res: Response) =
 });
 
 export const getCategories = asyncHandler(async (req: Request, res: Response) => {
-  const categories = await CategoryService.getCategories(req.query, req.user.tenantId.toString());
+  const { branch, ...filters } = req.query;
+  const tenantId = req.user?.tenantId?.toString() || req.tenantId?.toString();
+  
+  // Only super_admin, admin, and facility_manager can specify a different branch
+  const canSwitchBranch = req.user?.role === 'super_admin' || req.user?.role === 'admin' || req.user?.role === 'facility_manager';
+  
+  let queryFilters: any = { ...filters };
+  if (branch && canSwitchBranch) {
+    queryFilters.branch = branch;
+  } else if (req.user?.branch) {
+    queryFilters.branch = req.user.branch;
+  }
+  
+  const categories = await CategoryService.getCategories(queryFilters, tenantId);
   res.status(StatusCodes.OK).json(ApiResponse.success(categories, 'Categories retrieved successfully'));
 });

@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { Payment, IPaymentDocument } from '../models/Payment.model';
 import { Sale } from '../models/Sale.model';
+import { AffiliateService } from './affiliate.service';
 import { ApiError } from '../utils/ApiError';
 import { StatusCodes } from 'http-status-codes';
 import { env } from '../config/env';
@@ -240,6 +241,15 @@ export class PaymentService {
           paymentStatus: 'paid',
           amountPaid: payment.amount,
         });
+      }
+
+      // Process affiliate commission if successful
+      if (payment.status === 'success') {
+        try {
+          await AffiliateService.processSubscriptionCommission(payment.toObject());
+        } catch (error) {
+          // Don't fail payment verification if commission fails
+        }
       }
 
       return payment;

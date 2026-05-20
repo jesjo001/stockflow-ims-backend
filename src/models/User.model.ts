@@ -7,9 +7,10 @@ export interface IUserDocument extends Document {
   lastName: string;
   email: string;
   password: string;
-  role: 'super_admin' | 'admin' | 'manager' | 'cashier' | 'stock_clerk' | 'viewer';
+  role: 'super_admin' | 'admin' | 'facility_manager' | 'manager' | 'cashier' | 'stock_clerk' | 'viewer';
   tenantId: Types.ObjectId;
   branch?: Types.ObjectId;
+  affiliateId?: Types.ObjectId;
   avatar?: string;
   phone?: string;
   isActive: boolean;
@@ -18,6 +19,9 @@ export interface IUserDocument extends Document {
   passwordChangedAt?: Date;
   passwordResetToken?: string;
   passwordResetExpires?: Date;
+  emailVerificationToken?: string;
+  emailVerificationExpires?: Date;
+  isEmailVerified: boolean;
   comparePassword(password: string): Promise<boolean>;
   changedPasswordAfter(JWTTimestamp: number): boolean;
 }
@@ -29,11 +33,12 @@ const userSchema = new Schema<IUserDocument>({
   password: { type: String, required: true, select: false },
   role: { 
     type: String, 
-    enum: ['super_admin', 'admin', 'manager', 'cashier', 'stock_clerk', 'viewer'],
+    enum: ['super_admin', 'admin', 'facility_manager', 'manager', 'cashier', 'stock_clerk', 'viewer'],
     default: 'viewer'
   },
   tenantId: { type: Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
   branch: { type: Schema.Types.ObjectId, ref: 'Branch' },
+  affiliateId: { type: Schema.Types.ObjectId, ref: 'Affiliate', index: true },
   avatar: String,
   phone: String,
   isActive: { type: Boolean, default: true },
@@ -42,6 +47,9 @@ const userSchema = new Schema<IUserDocument>({
   passwordChangedAt: Date,
   passwordResetToken: String,
   passwordResetExpires: Date,
+  emailVerificationToken: String,
+  emailVerificationExpires: Date,
+  isEmailVerified: { type: Boolean, default: true },
 }, { 
   timestamps: true,
   toJSON: {

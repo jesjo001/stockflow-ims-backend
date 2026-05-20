@@ -1,13 +1,23 @@
 'use strict';
 
-// Must run before ANY module loads — called via --require flag
-// Undici needs WebAssembly to load llhttp.wasm; setting it to undefined
-// forces undici to throw internally and use its JS fallback path
+// Disable WebAssembly for undici - forces HTTP/1.1 to use JavaScript parser
+// This is required in constrained environments where WebAssembly is problematic
 
-Object.defineProperty(globalThis, 'WebAssembly', {
-  get: () => undefined,
-  set: () => {},
-  configurable: true,
-});
+// Store original for reference
+const OriginalWebAssembly = globalThis.WebAssembly;
 
-console.log('[undici-patch] WebAssembly disabled globally');
+// Delete llhttp cache if it exists (prevents wasm from being loaded)
+if (require.cache) {
+  const keys = Object.keys(require.cache);
+  keys.forEach(key => {
+    if (key.includes('llhttp')) {
+      delete require.cache[key];
+    }
+  });
+}
+
+// Set WebAssembly to undefined at module load time
+// This prevents undici from attempting to load llhttp.wasm
+globalThis.WebAssembly = undefined as any;
+
+console.log('[undici-patch] WebAssembly set to undefined - undici will use HTTP/1.1 JavaScript parser');

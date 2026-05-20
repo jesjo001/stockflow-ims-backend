@@ -1,0 +1,274 @@
+import { Affiliate } from '../models/Affiliate.model';
+import { AffiliateCommission } from '../models/AffiliateCommission.model';
+import { PlatformSetting } from '../models/PlatformSetting.model';
+import { Payment } from '../models/Payment.model';
+import { Tenant } from '../models/Tenant.model';
+import { ApiError } from '../utils/ApiError';
+import { StatusCodes } from 'http-status-codes';
+
+export class AffiliateService {
+  /**
+   * Get or create platform default affiliate percentage
+   */
+  static async getDefaultAffiliatePercentage(): Promise<number> {
+    let settings = await PlatformSetting.findOne({ key: 'global' });
+    if (!settings) {
+      settings = await PlatformSetting.create({ key: 'global', defaultAffiliatePercentage: 10 });
+    }
+    return settings.defaultAffiliatePercentage;
+  }
+
+  /**
+   * Set default affiliate percentage (super admin only)
+   */
+  static async setDefaultAffiliatePercentage(percentage: number): Promise<number> {
+    if (percentage < 0 || percentage > 100) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, 'Percentage must be between 0 and 100');
+    }
+    let settings = await PlatformSetting.findOne({ key: 'global' });
+    if (!settings) {
+      settings = await PlatformSetting.create({ key: 'global', defaultAffiliatePercentage: percentage });
+    } else {
+      settings.defaultAffiliatePercentage = percentage;
+      await settings.save();
+    }
+    return settings.defaultAffiliatePercentage;
+  }
+
+  /**
+   * Create affiliate account
+   */
+  static async createAffiliate(data: {
+    name: string;
+    email: string;
+    commissionPercentage: number;
+  }, createdBy: string): Promise<any> {
+    // Validate commission percentage
+    if (data.commissionPercentage < 0 || data.commissionPercentage > 100) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, 'Commission percentage must be between 0 and 100');
+    }
+
+    // Generate unique code from name
+    const baseCode = data.name
+      .toUpperCase()
+      .replace(/\s+/g, '')
+      .substring(0, 20);
+    let code = baseCode;
+    let counter = 1;
+    const maxAttempts = 100;
+    
+    while (counter <= maxAttempts && await Affiliate.findOne({ code })) {
+      code = `${baseCode}${counter}`;
+      counter++;
+    }
+
+    if (counter > maxAttempts) {
+      throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to generate unique affiliate code');
+    }
+
+    const affiliate = await Affiliate.create({
+      name: data.name,
+      email: data.email,
+      code,
+      commissionPercentage: data.commissionPercentage,
+      createdBy,
+    });
+
+    return affiliate;
+  }
+
+  /**
+   * Get all affiliates
+   */
+  static async getAllAffiliates(query: { page?: number; limit?: number } = {}) {
+    const { page = 1, limit = 50 } = query;
+    return Affiliate.find()
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean();
+  }
+
+  /**
+   * Get affiliate by ID with dashboard stats
+   */
+  static async getAffiliateDashboard(affiliateId: string): Promise<any> {
+    const affiliate = await Affiliate.findById(affiliateId);
+    if (!affiliate) {
+      throw new ApiError(StatusCodes.NOT_FOUND, 'Affiliate not found');
+    }
+
+    // Get commission stats using aggregation
+    const paidCommissions = await AffiliateCommission.find({ affiliateId, status: 'paid' })
+      .select('commissionAmount')
+      .lean();
+    
+    const pendingCommissions = await AffiliateCommission.find({ affiliateId, status: 'pending' })
+      .select('commissionAmount')
+      .lean();
+
+    const paidEarnings = paidCommissions.reduce((sum, c) => sum + c.commissionAmount, 0);
+    const pendingEarnings = pendingCommissions.reduce((sum, c) => sum + c.commissionAmount, 0);
+
+    // Get recent referrals
+    const referrals = await Tenant.find({ referredByAffiliate: affiliateId })
+      .select('name email createdAt')
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .lean();
+
+    // Get recent commissions
+    const recentCommissions = await AffiliateCommission.find({ affiliateId })
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .populate('tenantId', 'name')
+      .lean();
+
+    return {
+      affiliate: affiliate.toJSON(),
+      stats: {
+        totalEarnings: affiliate.totalEarnings,
+        paidEarnings,
+        pendingEarnings,
+        totalReferrals: affiliate.totalReferrals,
+        totalCommissions: paidCommissions.length + pendingCommissions.length,
+      },
+      recentReferrals: referrals,
+      commissions: recentCommissions,
+    };
+  }
+
+  /**
+   * Process subscription commission for new tenant payment
+   */
+  static async processSubscriptionCommission(payment: any): Promise<void> {
+    try {
+      // Find the tenant for this payment
+      const tenant = await Tenant.findById(payment.tenantId);
+      if (!tenant || !tenant.referredByAffiliate) {
+        return; // No affiliate referral, skip
+      }
+
+      const affiliate = await Affiliate.findById(tenant.referredByAffiliate);
+      if (!affiliate) {
+        return; // Affiliate not found
+      }
+
+      // Get commission percentage (use tenant's stored percentage or affiliate's percentage)
+      const commissionPercentage = tenant.affiliateCommissionPercentage || affiliate.commissionPercentage;
+      const commissionAmount = (payment.amount * commissionPercentage) / 100;
+
+      // Create commission record
+      const commission = await AffiliateCommission.create({
+        affiliateId: affiliate._id,
+        tenantId: payment.tenantId,
+        paymentId: payment._id,
+        subscriptionAmount: payment.amount,
+        commissionPercentage,
+        commissionAmount,
+        status: 'pending',
+      });
+
+      // Update affiliate earnings
+      await Affiliate.findByIdAndUpdate(affiliate._id, {
+        $inc: { totalEarnings: commissionAmount },
+      });
+
+      return;
+    } catch (error) {
+      // Don't throw - payment should succeed even if commission processing fails
+    }
+  }
+
+  /**
+   * Get affiliate referrals list with commission info
+   */
+  static async getAffiliateReferrals(affiliateId: string, query: { page?: number; limit?: number } = {}) {
+    const { page = 1, limit = 20 } = query;
+
+    const referrals = await Tenant.find({ referredByAffiliate: affiliateId })
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean();
+
+    // Get commissions for these referrals
+    const commissionsByTenantId: Record<string, any> = {};
+    const allCommissions = await AffiliateCommission.find({
+      affiliateId,
+      tenantId: { $in: referrals.map(r => r._id) },
+    }).lean();
+
+    allCommissions.forEach(c => {
+      commissionsByTenantId[c.tenantId.toString()] = c;
+    });
+
+    return referrals.map(referral => ({
+      ...referral,
+      commission: commissionsByTenantId[referral._id.toString()] || null,
+    }));
+  }
+
+  /**
+   * Update affiliate commission percentage
+   */
+  static async updateAffiliateCommission(affiliateId: string, percentage: number): Promise<any> {
+    if (percentage < 0 || percentage > 100) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, 'Percentage must be between 0 and 100');
+    }
+
+    const affiliate = await Affiliate.findByIdAndUpdate(
+      affiliateId,
+      { commissionPercentage: percentage },
+      { new: true }
+    );
+
+    if (!affiliate) {
+      throw new ApiError(StatusCodes.NOT_FOUND, 'Affiliate not found');
+    }
+
+    return affiliate;
+  }
+
+  /**
+   * Deactivate affiliate
+   */
+  static async deactivateAffiliate(affiliateId: string): Promise<any> {
+    const affiliate = await Affiliate.findByIdAndUpdate(
+      affiliateId,
+      { isActive: false },
+      { new: true }
+    );
+
+    if (!affiliate) {
+      throw new ApiError(StatusCodes.NOT_FOUND, 'Affiliate not found');
+    }
+
+    return affiliate;
+  }
+
+  /**
+   * Get commission history for affiliate
+   */
+  static async getCommissionHistory(
+    affiliateId: string,
+    query: { page?: number; limit?: number; status?: string } = {}
+  ) {
+    const { page = 1, limit = 20, status } = query;
+
+    const filter: any = { affiliateId };
+    if (status) filter.status = status;
+
+    const commissions = await AffiliateCommission.find(filter)
+      .populate('tenantId', 'name')
+      .populate('paymentId', 'amount transactionRef')
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean();
+
+    const total = await AffiliateCommission.countDocuments(filter);
+
+    return { commissions, total, page, limit };
+  }
+}

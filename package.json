@@ -1,13 +1,11 @@
 {
-  "name": "backend",
+  "name": "stock-it-backend",
   "version": "1.0.0",
   "main": "dist/server.js",
   "scripts": {
-    "start": "node --max-old-space-size=512 dist/server.js",
+    "start": "node --max-old-space-size=512 --require ./dist/undici-patch.js dist/server.js",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "test": "jest",
-    "postinstall": "npm run build",
-    "build": "rimraf dist && tsc",
     "lint": "eslint . --ext .ts",
     "swagger": "ts-node src/swagger.ts"
   },
@@ -23,6 +21,7 @@
     "bcryptjs": "^3.0.3",
     "compression": "^1.8.1",
     "cors": "^2.8.6",
+    "date-fns": "^4.1.0",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "express-mongo-sanitize": "^2.2.0",

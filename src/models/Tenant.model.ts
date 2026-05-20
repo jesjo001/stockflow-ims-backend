@@ -11,7 +11,7 @@ export interface ITenantDocument extends Document {
   address?: string;
   city?: string;
   country?: string;
-  billingPlan: 'starter' | 'professional' | 'enterprise';
+  billingPlan: 'free' | 'starter' | 'professional' | 'enterprise';
   isActive: boolean;
   maxUsers: number;
   maxBranches: number;
@@ -29,8 +29,8 @@ const tenantSchema = new Schema<ITenantDocument>({
   country: String,
   billingPlan: { 
     type: String, 
-    enum: ['starter', 'professional', 'enterprise'],
-    default: 'starter'
+    enum: ['free', 'starter', 'professional', 'enterprise'],
+    default: 'free'
   },
   isActive: { type: Boolean, default: true },
   maxUsers: { type: Number, default: 10 },

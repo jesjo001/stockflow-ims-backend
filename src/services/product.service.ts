@@ -6,9 +6,14 @@ import { generateBarcode } from '../utils/generateBarcode';
 import { ApiError } from '../utils/ApiError';
 import { StatusCodes } from 'http-status-codes';
 import { cache } from '../utils/cache';
+import { enforceTenantResourceLimit, getTenantPlanLimits } from '../utils/planLimits';
 
 export class ProductService {
   static async createProduct(data: any, userId: string, tenantId: string) {
+    const limits = await getTenantPlanLimits(tenantId);
+    const totalProducts = await Product.countDocuments({ tenantId });
+    enforceTenantResourceLimit(totalProducts, limits.maxProducts, 'products');
+
     if (!data.sku) data.sku = generateSKU(data.name, data.category);
     if (!data.barcode) data.barcode = generateBarcode();
     if (!data.slug) data.slug = data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
@@ -44,9 +49,9 @@ export class ProductService {
     return product;
   }
 
-  static async getProducts(filters: any, options: any, tenantId: string) {
+  static async getProducts(filters: any, options: any, tenantId?: string) {
     const { search, ...filterFields } = filters;
-    const tenantFilters: any = { ...filterFields, tenantId };
+    const tenantFilters: any = tenantId ? { ...filterFields, tenantId } : { ...filterFields };
     let cacheKey, cachedData;
     
     // Handle search parameter - search across name, sku, and barcode
@@ -94,13 +99,14 @@ export class ProductService {
     return { ...result, docs: productsWithStock };
   }
 
-  static async getProductById(id: string, tenantId: string) {
-    const cacheKey = `product_${id}_${tenantId}`;
+  static async getProductById(id: string, tenantId?: string) {
+    const cacheKey = `product_${id}_${tenantId || 'public'}`;
     const cachedProduct = await cache.get(cacheKey);
 
     if (cachedProduct) return cachedProduct;
 
-    const product = await Product.findOne({ _id: id, tenantId }).populate(['category', 'branch']).lean();
+    const query = tenantId ? { _id: id, tenantId } : { _id: id };
+    const product = await Product.findOne(query).populate(['category', 'branch']).lean();
     if (!product) throw new ApiError(StatusCodes.NOT_FOUND, 'Product not found');
     
     // Fetch stock level
@@ -168,6 +174,18 @@ export class ProductService {
 
     await cache.del(`product_${id}_${tenantId}`);
     await cache.del('all_products');
+  }
+
+  static async toggleVisibility(id: string, tenantId: string) {
+    const product = await Product.findOne({ _id: id, tenantId });
+    if (!product) throw new ApiError(StatusCodes.NOT_FOUND, 'Product not found');
+
+    product.isVisible = !product.isVisible;
+    await product.save();
+
+    await cache.del(`product_${id}_${tenantId}`);
+    await cache.del('all_products');
+    return product;
   }
 
   private static getStockStatus(quantity: number, reorderPoint: number): string {

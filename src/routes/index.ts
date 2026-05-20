@@ -13,6 +13,9 @@ import serviceRoutes from './service.routes';
 import uploadRoutes from './upload.routes';
 import paymentRoutes from './payment.routes';
 import settingsRoutes from './settings.routes';
+import tenantRoutes from './tenant.routes';
+import feedbackRoutes from './feedback.routes';
+import affiliateRoutes from './affiliate.routes';
 
 const router = Router();
 
@@ -30,5 +33,8 @@ router.use('/services', serviceRoutes);
 router.use('/upload', uploadRoutes);
 router.use('/payments', paymentRoutes);
 router.use('/settings', settingsRoutes);
+router.use('/tenants', tenantRoutes);
+router.use('/feedback', feedbackRoutes);
+router.use('/affiliates', affiliateRoutes);
 
 export default router;

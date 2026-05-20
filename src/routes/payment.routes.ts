@@ -19,7 +19,7 @@ router.use(protect);
 // Initialize payment
 router.post(
   '/initialize',
-  authorize('admin', 'manager', 'cashier'),
+  authorize('super_admin', 'admin', 'manager', 'facility_manager', 'cashier'),
   validate(paymentValidator.initialize),
   PaymentController.initializePayment
 );
@@ -27,42 +27,42 @@ router.post(
 // Get all payments
 router.get(
   '/',
-  authorize('admin', 'manager', 'cashier'),
+  authorize('super_admin', 'admin', 'manager', 'facility_manager', 'cashier', 'viewer'),
   PaymentController.getPayments
 );
 
 // Get payment by ID
 router.get(
   '/:paymentId',
-  authorize('admin', 'manager', 'cashier'),
+  authorize('super_admin', 'admin', 'manager', 'facility_manager', 'cashier', 'viewer'),
   PaymentController.getPaymentById
 );
 
 // Get payment link for pending payment
 router.get(
   '/:paymentId/link',
-  authorize('admin', 'manager', 'cashier'),
+  authorize('super_admin', 'admin', 'manager', 'facility_manager', 'cashier'),
   PaymentController.getPaymentLink
 );
 
 // Verify payment by transaction ID
 router.get(
   '/verify/:transactionId',
-  authorize('admin', 'manager', 'cashier'),
+  authorize('super_admin', 'admin', 'manager', 'facility_manager', 'cashier'),
   PaymentController.verifyPayment
 );
 
 // Verify payment by transaction reference
 router.get(
   '/verify-ref/:txRef',
-  authorize('admin', 'manager', 'cashier'),
+  authorize('super_admin', 'admin', 'manager', 'facility_manager', 'cashier'),
   PaymentController.verifyPaymentByRef
 );
 
 // Process refund
 router.post(
   '/:paymentId/refund',
-  authorize('admin', 'manager'),
+  authorize('super_admin', 'admin', 'manager', 'facility_manager'),
   validate(paymentValidator.refund),
   PaymentController.processRefund
 );
