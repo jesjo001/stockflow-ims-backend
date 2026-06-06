@@ -9,9 +9,10 @@ import {
 	forgotPassword,
 	verifyEmail,
 	resendVerificationEmail,
+  registerAffiliate,
 } from '../controllers/auth.controller';
 import { validate } from '../middleware/validate.middleware';
-import { registerSchema, loginSchema } from '../validators/auth.validator';
+import { registerSchema, loginSchema, affiliateRegisterSchema } from '../validators/auth.validator';
 import { protect } from '../middleware/auth.middleware';
 import { authorize } from '../middleware/rbac.middleware';
 import { authLimiter } from '../middleware/rateLimiter.middleware';
@@ -20,6 +21,9 @@ const router = Router();
 
 // Public initial super admin registration
 router.post('/register-owner', authLimiter, validate(registerSchema), registerOwner);
+
+// Affiliate registration
+router.post('/register-affiliate', authLimiter, validate(affiliateRegisterSchema), registerAffiliate);
 
 // User registration by privileged tenant admins
 router.post('/register', authLimiter, protect, authorize('super_admin', 'admin', 'facility_manager'), register);

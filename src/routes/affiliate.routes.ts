@@ -21,6 +21,7 @@ router.post('/:id/deactivate', authorize('super_admin'), AffiliateController.dea
 router.get('/me/dashboard', AffiliateController.getMyDashboard);
 router.get('/me/referrals', AffiliateController.getMyReferrals);
 router.get('/me/commissions', AffiliateController.getMyCommissionHistory);
+router.post('/me/invite', AffiliateController.inviteUser);
 
 // Specific affiliate endpoints (super admin can view any, affiliate can view own)
 router.get('/:id/dashboard', AffiliateController.getDashboard);

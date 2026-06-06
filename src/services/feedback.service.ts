@@ -261,7 +261,7 @@ export class FeedbackService {
               </p>
             </div>
             <div class="footer">
-              <p>&copy; 2026 Stock Inventory System. All rights reserved.</p>
+              <p>&copy; 2026 StockIt System. All rights reserved.</p>
             </div>
           </div>
         </body>

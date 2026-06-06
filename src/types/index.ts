@@ -1,6 +1,6 @@
 import { Types } from 'mongoose';
 
-export type Role = 'super_admin' | 'admin' | 'facility_manager' | 'manager' | 'cashier' | 'stock_clerk' | 'viewer';
+export type Role = 'super_admin' | 'admin' | 'facility_manager' | 'manager' | 'cashier' | 'stock_clerk' | 'viewer' | 'affiliate';
 
 export interface IUser {
   _id: Types.ObjectId;

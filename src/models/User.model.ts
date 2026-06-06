@@ -33,7 +33,7 @@ const userSchema = new Schema<IUserDocument>({
   password: { type: String, required: true, select: false },
   role: { 
     type: String, 
-    enum: ['super_admin', 'admin', 'facility_manager', 'manager', 'cashier', 'stock_clerk', 'viewer'],
+    enum: ['super_admin', 'admin', 'facility_manager', 'manager', 'cashier', 'stock_clerk', 'viewer', 'affiliate'],
     default: 'viewer'
   },
   tenantId: { type: Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
@@ -83,3 +83,4 @@ userSchema.methods.changedPasswordAfter = function(JWTTimestamp: number): boolea
 };
 
 export const User = mongoose.model<IUserDocument, mongoose.PaginateModel<IUserDocument>>('User', userSchema);
+

@@ -253,5 +253,24 @@ export class AffiliateController {
       ApiResponse.success({ user, affiliate: affiliate.name }, 'Affiliate assigned to user successfully')
     );
   });
+
+  /**
+   * Invite a new business (tenant owner) via email
+   */
+  static inviteUser = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user.affiliateId) {
+      throw new ApiError(StatusCodes.FORBIDDEN, 'You are not an affiliate');
+    }
+
+    const { email } = req.body;
+    if (!email) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, 'Email is required');
+    }
+
+    const result = await AffiliateService.inviteUser((req.user.affiliateId as any).toString(), email);
+    res.status(StatusCodes.OK).json(
+      ApiResponse.success(result, 'Invitation sent successfully')
+    );
+  });
 }
 

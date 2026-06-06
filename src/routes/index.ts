@@ -16,6 +16,7 @@ import settingsRoutes from './settings.routes';
 import tenantRoutes from './tenant.routes';
 import feedbackRoutes from './feedback.routes';
 import affiliateRoutes from './affiliate.routes';
+import geolocationRoutes from './geolocation.routes';
 
 const router = Router();
 
@@ -36,5 +37,6 @@ router.use('/settings', settingsRoutes);
 router.use('/tenants', tenantRoutes);
 router.use('/feedback', feedbackRoutes);
 router.use('/affiliates', affiliateRoutes);
+router.use('/geolocation', geolocationRoutes);
 
 export default router;

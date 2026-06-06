@@ -3,6 +3,11 @@ import { AffiliateCommission } from '../models/AffiliateCommission.model';
 import { PlatformSetting } from '../models/PlatformSetting.model';
 import { Payment } from '../models/Payment.model';
 import { Tenant } from '../models/Tenant.model';
+import { User } from '../models/User.model';
+import { emailService } from '../utils/email';
+import { generatePasswordResetToken, getPasswordResetExpiry } from '../utils/passwordReset';
+import { startTransactionSession } from '../utils/mongoTransaction';
+import { logger } from '../config/logger';
 import { ApiError } from '../utils/ApiError';
 import { StatusCodes } from 'http-status-codes';
 
@@ -42,7 +47,7 @@ export class AffiliateService {
     name: string;
     email: string;
     commissionPercentage: number;
-  }, createdBy: string): Promise<any> {
+  }, createdBy: string, session?: any): Promise<any> {
     // Validate commission percentage
     if (data.commissionPercentage < 0 || data.commissionPercentage > 100) {
       throw new ApiError(StatusCodes.BAD_REQUEST, 'Commission percentage must be between 0 and 100');
@@ -57,7 +62,7 @@ export class AffiliateService {
     let counter = 1;
     const maxAttempts = 100;
     
-    while (counter <= maxAttempts && await Affiliate.findOne({ code })) {
+    while (counter <= maxAttempts && await Affiliate.findOne({ code }).session(session)) {
       code = `${baseCode}${counter}`;
       counter++;
     }
@@ -66,13 +71,13 @@ export class AffiliateService {
       throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to generate unique affiliate code');
     }
 
-    const affiliate = await Affiliate.create({
+    const affiliate = await Affiliate.create([{
       name: data.name,
       email: data.email,
       code,
       commissionPercentage: data.commissionPercentage,
       createdBy,
-    });
+    }], session ? { session } : {}).then(res => res[0]);
 
     return affiliate;
   }
@@ -112,7 +117,8 @@ export class AffiliateService {
 
     // Get recent referrals
     const referrals = await Tenant.find({ referredByAffiliate: affiliateId })
-      .select('name email createdAt')
+      .select('name email createdAt superAdminId isActive')
+      .populate('superAdminId', 'lastLogin')
       .sort({ createdAt: -1 })
       .limit(10)
       .lean();
@@ -270,5 +276,74 @@ export class AffiliateService {
     const total = await AffiliateCommission.countDocuments(filter);
 
     return { commissions, total, page, limit };
+  }
+
+  /**
+   * Invite a new user (tenant owner) via email
+   */
+  static async inviteUser(affiliateId: string, email: string) {
+    let session: any = null;
+    try {
+      session = await startTransactionSession();
+
+      // 1. Check if user already exists
+      const existingUser = await User.findOne({ email }).session(session);
+      if (existingUser) {
+        throw new ApiError(StatusCodes.BAD_REQUEST, 'User with this email already exists');
+      }
+
+      const affiliate = await Affiliate.findById(affiliateId).session(session);
+      if (!affiliate) throw new ApiError(StatusCodes.NOT_FOUND, 'Affiliate not found');
+
+      // 2. Create a placeholder tenant
+      const tenantCode = `INVITE_${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+      const tenant = await Tenant.create([{
+        name: 'New Business (Pending Setup)',
+        code: tenantCode,
+        referredByAffiliate: affiliateId,
+        isActive: false, // Inactive until profile updated
+      }], session ? { session } : {}).then(res => res[0]);
+
+      // 3. Create the user
+      const { hashedToken, plainToken } = generatePasswordResetToken();
+      const resetExpiry = getPasswordResetExpiry();
+
+      const user = await User.create([{
+        firstName: 'Business',
+        lastName: 'Owner',
+        email,
+        password: Math.random().toString(36).substring(2, 15), // Random temp password
+        role: 'super_admin',
+        tenantId: tenant._id,
+        isActive: true,
+        passwordResetToken: hashedToken,
+        passwordResetExpires: resetExpiry,
+        isEmailVerified: false,
+      }], session ? { session } : {}).then(res => res[0]);
+
+      // 4. Update tenant with superAdminId
+      tenant.superAdminId = user._id;
+      await tenant.save(session ? { session } : {});
+
+      if (session) {
+        await session.commitTransaction();
+      }
+
+      // 5. Send invitation email
+      logger.info(`📧 Sending invitation to ${email} (Token: ${plainToken})`);
+      emailService.sendUserInvitation(
+        email,
+        'Business Owner',
+        plainToken,
+        'Your New Business'
+      ).catch(err => logger.error(`❌ Failed to send invitation email: ${err}`));
+
+      return { message: 'Invitation sent successfully' };
+    } catch (error) {
+      if (session) await session.abortTransaction();
+      throw error;
+    } finally {
+      if (session) session.endSession();
+    }
   }
 }

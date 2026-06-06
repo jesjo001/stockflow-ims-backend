@@ -103,10 +103,13 @@ class EmailService {
         return true;
       }
 
-      logger.warn(`⚠️ Email API did not return success for ${options.to}. Falling back to SMTP.`);
+      logger.warn(`⚠️ Email API did not return success for ${options.to}. Status: ${response.status}, Data: ${JSON.stringify(response.data)}. Falling back to SMTP.`);
       return false;
-    } catch (error) {
-      logger.error(`❌ Email API failed for ${options.to}. Falling back to SMTP.`, error);
+    } catch (error: any) {
+      logger.error(`❌ Email API failed for ${options.to}. Falling back to SMTP. Error: ${error.message}`, {
+        response: error.response?.data,
+        status: error.response?.status
+      });
       return false;
     }
   }
@@ -120,7 +123,7 @@ class EmailService {
 
     try {
       const info = await this.transporter.sendMail({
-        from: env.EMAIL_FROM || 'noreply@stockinventory.com',
+        from: env.EMAIL_FROM || 'noreply@stocklt.xyz',
         ...options,
       });
 

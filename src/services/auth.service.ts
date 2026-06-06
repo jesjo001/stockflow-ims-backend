@@ -3,6 +3,7 @@ import { Tenant } from '../models/Tenant.model';
 import { Branch } from '../models/Branch.model';
 import { Affiliate } from '../models/Affiliate.model';
 import { PlatformSetting } from '../models/PlatformSetting.model';
+import { AffiliateService } from './affiliate.service';
 import { ApiError } from '../utils/ApiError';
 import { generateAccessToken, generateRefreshToken } from '../utils/generateTokens';
 import { emailService } from '../utils/email';
@@ -388,7 +389,24 @@ export class AuthService {
     user.password = newPassword;
     user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;
+    
+    // if email not verified, verify it now since user has access to email
+    if (!user.isEmailVerified) {
+      user.isEmailVerified = true;
+      user.emailVerificationToken = undefined;
+      user.emailVerificationExpires = undefined;
+    }
+    
     await user.save();
+
+    // If the user is a super_admin and their tenant is inactive, activate it
+    if (user.role === 'super_admin') {
+      const tenant = await Tenant.findById(user.tenantId);
+      if (tenant && !tenant.isActive) {
+        tenant.isActive = true;
+        await tenant.save();
+      }
+    }
 
     return { message: 'Password reset successfully' };
   }
@@ -455,7 +473,7 @@ export class AuthService {
     await user.save({ validateBeforeSave: false });
 
     const tenant = await Tenant.findById(user.tenantId);
-    const tenantName = tenant?.name || 'Stock Inventory';
+    const tenantName = tenant?.name || 'StockIt';
 
     await emailService.sendEmailVerificationEmail(
       user.email,
@@ -465,5 +483,77 @@ export class AuthService {
     );
 
     return { message: 'Verification email sent successfully' };
+  }
+
+  /**
+   * Register a new affiliate
+   */
+  static async registerAffiliate(userData: any) {
+    let session: any = null;
+    try {
+      session = await startTransactionSession();
+
+      // 1. Get or create platform tenant
+      let platformTenant = await Tenant.findOne({ code: 'PLATFORM' });
+      if (!platformTenant) {
+        platformTenant = await Tenant.create([{
+          name: 'Platform Partners',
+          code: 'PLATFORM',
+          isActive: true,
+          billingPlan: 'enterprise'
+        }], session ? { session } : {}).then(res => res[0]);
+      }
+
+      // 2. Create Affiliate record
+      const affiliate = await AffiliateService.createAffiliate({
+        name: `${userData.firstName} ${userData.lastName}`,
+        email: userData.email,
+        commissionPercentage: 10, // Default 10%
+      }, undefined as any, session); // Self-registered
+
+      // 3. Create User record
+      const { hashedToken, plainToken } = generateEmailVerificationToken();
+      const verificationExpiry = getEmailVerificationExpiry();
+
+      const user = await User.create([{
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        email: userData.email,
+        password: userData.password,
+        role: 'affiliate',
+        tenantId: platformTenant._id,
+        affiliateId: affiliate._id,
+        isActive: true,
+        isEmailVerified: false,
+        emailVerificationToken: hashedToken,
+        emailVerificationExpires: verificationExpiry,
+      }], session ? { session } : {});
+
+      if (session) {
+        await session.commitTransaction();
+      }
+
+      // Send verification email
+      await emailService.sendEmailVerificationEmail(
+        userData.email,
+        userData.firstName,
+        plainToken,
+        'Platform Partners'
+      );
+
+      const accessToken = generateAccessToken(user[0]._id.toString(), platformTenant._id.toString());
+      const refreshToken = generateRefreshToken(user[0]._id.toString(), platformTenant._id.toString());
+
+      return {
+        user: user[0],
+        accessToken,
+        refreshToken,
+      };
+    } catch (error) {
+      if (session) await session.abortTransaction();
+      throw error;
+    } finally {
+      if (session) session.endSession();
+    }
   }
 }

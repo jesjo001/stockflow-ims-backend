@@ -22,6 +22,16 @@ export const registerOwner = asyncHandler(async (req: Request, res: Response) =>
 });
 
 /**
+ * Register a new affiliate account (public signup).
+ */
+export const registerAffiliate = asyncHandler(async (req: Request, res: Response) => {
+  const data = await AuthService.registerAffiliate(req.body);
+  res.status(StatusCodes.CREATED).json(
+    ApiResponse.success(data, 'Affiliate registered. Verification email sent.', StatusCodes.CREATED)
+  );
+});
+
+/**
  * Add a new user to the system
  * Only super_admin or admin can add users
  */
