@@ -336,6 +336,139 @@ class EmailService {
     }
   }
 
+  async sendInvoiceEmail(
+    email: string,
+    customerName: string,
+    invoiceNumber: string,
+    invoiceHtml: string,
+    tenantName: string
+  ): Promise<boolean> {
+    try {
+      const html = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <style>
+              body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+              .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+              .header { border-bottom: 2px solid #e5e7eb; padding-bottom: 20px; margin-bottom: 20px; }
+              .footer { font-size: 12px; color: #6b7280; text-align: center; margin-top: 30px; border-top: 1px solid #e5e7eb; pt-20px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h2>Invoice from ${tenantName}</h2>
+                <p>Invoice #: <strong>${invoiceNumber}</strong></p>
+              </div>
+              <div class="content">
+                <p>Dear ${customerName || 'Customer'},</p>
+                <p>Thank you for your business. Please find your invoice below for the recent transaction at ${tenantName}.</p>
+                <div style="margin: 30px 0; border: 1px solid #e5e7eb; padding: 20px; border-radius: 8px; background: white;">
+                  ${invoiceHtml}
+                </div>
+                <p>If you have any questions, please feel free to contact us.</p>
+              </div>
+              <div class="footer">
+                <p>Sent via StockFlow Inventory Management System</p>
+                <p>&copy; 2026 ${tenantName}. All rights reserved.</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `;
+
+      return await this.deliverEmail({
+        to: email,
+        subject: `Invoice ${invoiceNumber} from ${tenantName}`,
+        html,
+      });
+    } catch (error) {
+      logger.error(`❌ Error in sendInvoiceEmail: ${error}`);
+      return false;
+    }
+  }
+
+  async sendSalesSummaryEmail(
+    email: string,
+    firstName: string,
+    tenantName: string,
+    summary: {
+      period: string;
+      revenue: number;
+      profit: number;
+      income: number;
+      salesCount: number;
+      currency: string;
+    }
+  ): Promise<boolean> {
+    try {
+      const html = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <style>
+              body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background-color: #4f46e5; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
+              .content { background-color: #ffffff; padding: 20px; border: 1px solid #e5e7eb; border-radius: 0 0 5px 5px; }
+              .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0; }
+              .stat-card { background-color: #f9fafb; padding: 15px; border-radius: 8px; border: 1px solid #f3f4f6; text-align: center; }
+              .stat-label { font-size: 12px; color: #6b7280; text-transform: uppercase; margin-bottom: 5px; }
+              .stat-value { font-size: 20px; font-weight: bold; color: #111827; }
+              .footer { font-size: 12px; color: #6b7280; text-align: center; margin-top: 20px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>Sales Summary: ${summary.period}</h1>
+              </div>
+              <div class="content">
+                <p>Hi ${firstName},</p>
+                <p>Here is the sales summary for <strong>${tenantName}</strong> for ${summary.period}:</p>
+                
+                <div class="stats-grid">
+                  <div class="stat-card">
+                    <div class="stat-label">Revenue</div>
+                    <div class="stat-value">${summary.currency} ${summary.revenue.toLocaleString()}</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label">Gross Profit</div>
+                    <div class="stat-value">${summary.currency} ${summary.profit.toLocaleString()}</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label">Net Income</div>
+                    <div class="stat-value">${summary.currency} ${summary.income.toLocaleString()}</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label">Total Sales</div>
+                    <div class="stat-value">${summary.salesCount}</div>
+                  </div>
+                </div>
+
+                <p>Login to your dashboard for a more detailed analysis.</p>
+                <a href="${env.CLIENT_URL}" style="display: inline-block; background-color: #4f46e5; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin: 20px 0;">Go to Dashboard</a>
+              </div>
+              <div class="footer">
+                <p>&copy; 2026 Stock Inventory System. All rights reserved.</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `;
+
+      return await this.deliverEmail({
+        to: email,
+        subject: `${summary.period} Sales Summary - ${tenantName}`,
+        html,
+      });
+    } catch (error) {
+      logger.error(`❌ Error in sendSalesSummaryEmail: ${error}`);
+      return true;
+    }
+  }
+
   async sendEmail(options: EmailOptions): Promise<boolean> {
     try {
       return await this.deliverEmail(options);

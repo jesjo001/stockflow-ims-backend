@@ -14,6 +14,8 @@ export interface ISaleDocument extends Document {
   tenantId: Types.ObjectId;
   invoiceNumber: string;
   customer?: Types.ObjectId;
+  customerName?: string;
+  customerEmail?: string;
   branch: Types.ObjectId;
   items: ISaleItem[];
   subtotal: number;
@@ -35,6 +37,8 @@ const saleSchema = new Schema<ISaleDocument>({
   tenantId: { type: Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
   invoiceNumber: { type: String, required: true, unique: true },
   customer: { type: Schema.Types.ObjectId, ref: 'Customer' },
+  customerName: { type: String },
+  customerEmail: { type: String, lowercase: true, trim: true },
   branch: { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
   items: [{
     product: { type: Schema.Types.ObjectId, ref: 'Product', required: true },

@@ -3,7 +3,7 @@ import paginate from 'mongoose-paginate-v2';
 
 export interface INotificationDocument extends Document {
   tenantId: Types.ObjectId;
-  type: 'low_stock' | 'expiry' | 'new_order' | 'system' | 'payment';
+  type: 'low_stock' | 'expiry' | 'new_order' | 'system' | 'payment' | 'sales_summary';
   title: string;
   message: string;
   severity: 'info' | 'warning' | 'error';
@@ -18,7 +18,7 @@ const notificationSchema = new Schema<INotificationDocument>({
   tenantId: { type: Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
   type: { 
     type: String, 
-    enum: ['low_stock', 'expiry', 'new_order', 'system', 'payment'],
+    enum: ['low_stock', 'expiry', 'new_order', 'system', 'payment', 'sales_summary'],
     required: true
   },
   title: { type: String, required: true },

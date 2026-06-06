@@ -3,8 +3,11 @@ import { Product } from '../models/Product.model';
 import { StockLevel } from '../models/StockLevel.model';
 import { StockMovement } from '../models/StockMovement.model';
 import { Customer } from '../models/Customer.model';
+import { Settings } from '../models/Settings.model';
+import { emailService } from '../utils/email';
 import { generateInvoiceNumber } from '../utils/generateInvoiceNumber';
 import { ApiError } from '../utils/ApiError';
+import { logger } from '../config/logger';
 import { StatusCodes } from 'http-status-codes';
 import mongoose from 'mongoose';
 import { startTransactionSession } from '../utils/mongoTransaction';
@@ -130,6 +133,8 @@ export class SaleService {
       const sale = await Sale.create([{
         invoiceNumber,
         customer,
+        customerName: data.customerName,
+        customerEmail: data.customerEmail,
         branch: branchId,
         tenantId,
         items,
@@ -149,6 +154,15 @@ export class SaleService {
       if (session) {
         await session.commitTransaction();
       }
+
+      // 7. Auto-send email if enabled
+      const settings = await Settings.findOne({ tenantId });
+      if (settings?.invoiceAutoSendEmail && (customer || data.customerEmail)) {
+        this.sendInvoice(sale[0]._id.toString(), tenantId, data.customerEmail).catch(err => {
+          logger.error(`❌ Failed to auto-send invoice email: ${err}`);
+        });
+      }
+
       return sale[0];
     } catch (error) {
       if (session) {
@@ -172,5 +186,100 @@ export class SaleService {
       populate: ['customer', 'branch', 'soldBy', 'items.product'],
       sort: { createdAt: -1 }
     });
+  }
+
+  /**
+   * Send invoice via email to customer
+   */
+  static async sendInvoice(saleId: string, tenantId: string, customEmail?: string) {
+    const sale = await Sale.findOne({ _id: saleId, tenantId })
+      .populate('customer')
+      .populate('items.product');
+    
+    if (!sale) {
+      throw new ApiError(StatusCodes.NOT_FOUND, 'Sale not found');
+    }
+
+    const email = customEmail || (sale.customer as any)?.email;
+    if (!email) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, 'Customer email not found. Please provide an email address.');
+    }
+
+    const settings = await Settings.findOne({ tenantId });
+    const tenantName = settings?.companyName || 'Our Business';
+
+    // Build invoice HTML
+    const itemsHtml = sale.items.map((item: any) => `
+      <tr>
+        <td style="padding: 10px; border-bottom: 1px solid #f3f4f6;">${item.product?.name || 'Item'}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #f3f4f6; text-align: center;">${item.quantity}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #f3f4f6; text-align: right;">${(settings?.currency || 'USD')} ${item.unitPrice.toLocaleString()}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #f3f4f6; text-align: right;">${(settings?.currency || 'USD')} ${((item.quantity * item.unitPrice) + (item.taxAmount || 0)).toLocaleString()}</td>
+      </tr>
+    `).join('');
+
+    const invoiceHtml = `
+      <div style="font-family: sans-serif; color: #1f2937;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+          <div>
+            <h2 style="margin: 0; color: ${settings?.invoiceAccentColor || '#6366f1'};">${settings?.invoiceHeader || 'INVOICE'}</h2>
+            <p style="margin: 5px 0; font-size: 14px; color: #6b7280;"># ${sale.invoiceNumber}</p>
+          </div>
+          <div style="text-align: right;">
+            <p style="margin: 0; font-weight: bold;">${tenantName}</p>
+            <p style="margin: 5px 0; font-size: 12px; color: #6b7280;">${new Date(sale.createdAt).toLocaleDateString()}</p>
+          </div>
+        </div>
+        
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+          <thead>
+            <tr style="background: #f9fafb; font-size: 12px; text-transform: uppercase; color: #6b7280;">
+              <th style="padding: 10px; text-align: left;">Description</th>
+              <th style="padding: 10px; text-align: center;">Qty</th>
+              <th style="padding: 10px; text-align: right;">Price</th>
+              <th style="padding: 10px; text-align: right;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHtml}
+          </tbody>
+        </table>
+
+        <div style="margin-left: auto; width: 250px; font-size: 14px;">
+          <div style="display: flex; justify-content: space-between; padding: 5px 0;">
+            <span style="color: #6b7280;">Subtotal</span>
+            <span>${(settings?.currency || 'USD')} ${sale.subtotal.toLocaleString()}</span>
+          </div>
+          ${sale.taxAmount ? `
+            <div style="display: flex; justify-content: space-between; padding: 5px 0;">
+              <span style="color: #6b7280;">Tax</span>
+              <span>${(settings?.currency || 'USD')} ${sale.taxAmount.toLocaleString()}</span>
+            </div>
+          ` : ''}
+          ${sale.discountAmount ? `
+            <div style="display: flex; justify-content: space-between; padding: 5px 0;">
+              <span style="color: #6b7280;">Discount</span>
+              <span>-${(settings?.currency || 'USD')} ${sale.discountAmount.toLocaleString()}</span>
+            </div>
+          ` : ''}
+          <div style="display: flex; justify-content: space-between; padding: 10px 0; border-top: 2px solid #f3f4f6; margin-top: 10px; font-weight: bold; font-size: 16px;">
+            <span>Total</span>
+            <span>${(settings?.currency || 'USD')} ${sale.total.toLocaleString()}</span>
+          </div>
+        </div>
+        
+        <div style="margin-top: 40px; text-align: center; font-size: 12px; color: #9ca3af; font-style: italic;">
+          ${settings?.invoiceFooter || 'Thank you for your business!'}
+        </div>
+      </div>
+    `;
+
+    return await emailService.sendInvoiceEmail(
+      email,
+      (sale.customer as any)?.name || 'Customer',
+      sale.invoiceNumber,
+      invoiceHtml,
+      tenantName
+    );
   }
 }

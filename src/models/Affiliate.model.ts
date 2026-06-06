@@ -8,6 +8,10 @@ export interface IAffiliateDocument extends Document {
   isActive: boolean;
   totalEarnings: number;
   totalReferrals: number;
+  totalPaid: number;
+  bankName?: string;
+  accountName?: string;
+  accountNumber?: string;
   createdBy?: Types.ObjectId;
   createdAt?: Date;
   updatedAt?: Date;
@@ -29,6 +33,10 @@ const affiliateSchema = new Schema<IAffiliateDocument>(
     isActive: { type: Boolean, default: true },
     totalEarnings: { type: Number, default: 0 },
     totalReferrals: { type: Number, default: 0 },
+    totalPaid: { type: Number, default: 0 },
+    bankName: String,
+    accountName: String,
+    accountNumber: String,
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
   },
   {

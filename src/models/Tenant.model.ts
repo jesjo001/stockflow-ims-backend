@@ -15,6 +15,8 @@ export interface ITenantDocument extends Document {
   isActive: boolean;
   maxUsers: number;
   maxBranches: number;
+  referredByAffiliate?: Types.ObjectId;
+  affiliateCommissionPercentage?: number;
 }
 
 const tenantSchema = new Schema<ITenantDocument>({
@@ -35,6 +37,8 @@ const tenantSchema = new Schema<ITenantDocument>({
   isActive: { type: Boolean, default: true },
   maxUsers: { type: Number, default: 10 },
   maxBranches: { type: Number, default: 1 },
+  referredByAffiliate: { type: Schema.Types.ObjectId, ref: 'Affiliate', index: true },
+  affiliateCommissionPercentage: { type: Number, default: 10 },
 }, { 
   timestamps: true,
   toJSON: {

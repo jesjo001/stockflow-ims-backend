@@ -1,5 +1,6 @@
 import { Affiliate } from '../models/Affiliate.model';
 import { AffiliateCommission } from '../models/AffiliateCommission.model';
+import { AffiliatePayout } from '../models/AffiliatePayout.model';
 import { PlatformSetting } from '../models/PlatformSetting.model';
 import { Payment } from '../models/Payment.model';
 import { Tenant } from '../models/Tenant.model';
@@ -104,20 +105,19 @@ export class AffiliateService {
     }
 
     // Get commission stats using aggregation
-    const paidCommissions = await AffiliateCommission.find({ affiliateId, status: 'paid' })
-      .select('commissionAmount')
-      .lean();
+    const allCommissions = await AffiliateCommission.find({ affiliateId }).lean();
     
-    const pendingCommissions = await AffiliateCommission.find({ affiliateId, status: 'pending' })
-      .select('commissionAmount')
-      .lean();
-
-    const paidEarnings = paidCommissions.reduce((sum, c) => sum + c.commissionAmount, 0);
-    const pendingEarnings = pendingCommissions.reduce((sum, c) => sum + c.commissionAmount, 0);
+    const paidEarnings = allCommissions
+      .filter(c => c.status === 'paid')
+      .reduce((sum, c) => sum + c.commissionAmount, 0);
+      
+    const pendingEarnings = allCommissions
+      .filter(c => c.status === 'pending')
+      .reduce((sum, c) => sum + c.commissionAmount, 0);
 
     // Get recent referrals
     const referrals = await Tenant.find({ referredByAffiliate: affiliateId })
-      .select('name email createdAt superAdminId isActive')
+      .select('name email createdAt superAdminId isActive billingPlan')
       .populate('superAdminId', 'lastLogin')
       .sort({ createdAt: -1 })
       .limit(10)
@@ -130,18 +130,148 @@ export class AffiliateService {
       .populate('tenantId', 'name')
       .lean();
 
+    // Get recent payouts
+    const recentPayouts = await AffiliatePayout.find({ affiliateId })
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .lean();
+
     return {
       affiliate: affiliate.toJSON(),
       stats: {
         totalEarnings: affiliate.totalEarnings,
-        paidEarnings,
-        pendingEarnings,
+        paidEarnings: affiliate.totalPaid, // Actual amount paid out
+        availableBalance: affiliate.totalEarnings - affiliate.totalPaid,
+        pendingEarnings, // Commissions not yet approved/processed
         totalReferrals: affiliate.totalReferrals,
-        totalCommissions: paidCommissions.length + pendingCommissions.length,
+        totalCommissions: allCommissions.length,
       },
       recentReferrals: referrals,
       commissions: recentCommissions,
+      recentPayouts,
     };
+  }
+
+  /**
+   * Update affiliate bank details
+   */
+  static async updateBankDetails(affiliateId: string, details: {
+    bankName: string;
+    accountName: string;
+    accountNumber: string;
+  }) {
+    const affiliate = await Affiliate.findByIdAndUpdate(
+      affiliateId,
+      {
+        bankName: details.bankName,
+        accountName: details.accountName,
+        accountNumber: details.accountNumber,
+      },
+      { new: true }
+    );
+
+    if (!affiliate) throw new ApiError(StatusCodes.NOT_FOUND, 'Affiliate not found');
+    return affiliate;
+  }
+
+  /**
+   * Request a payout
+   */
+  static async requestPayout(affiliateId: string, amount: number) {
+    const affiliate = await Affiliate.findById(affiliateId);
+    if (!affiliate) throw new ApiError(StatusCodes.NOT_FOUND, 'Affiliate not found');
+
+    const availableBalance = affiliate.totalEarnings - affiliate.totalPaid;
+    if (amount > availableBalance) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, `Insufficient balance. Available: ${availableBalance}`);
+    }
+
+    if (!affiliate.bankName || !affiliate.accountNumber) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, 'Please set your bank details before requesting a payout');
+    }
+
+    // Check for pending payouts
+    const pendingPayout = await AffiliatePayout.findOne({ affiliateId, status: 'pending' });
+    if (pendingPayout) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, 'You already have a pending payout request');
+    }
+
+    const payout = await AffiliatePayout.create({
+      affiliateId,
+      amount,
+      bankName: affiliate.bankName,
+      accountName: affiliate.accountName,
+      accountNumber: affiliate.accountNumber,
+      status: 'pending',
+    });
+
+    return payout;
+  }
+
+  /**
+   * Get payout history
+   */
+  static async getPayoutHistory(affiliateId: string, query: { page?: number; limit?: number } = {}) {
+    const { page = 1, limit = 20 } = query;
+    const payouts = await AffiliatePayout.find({ affiliateId })
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean();
+    
+    const total = await AffiliatePayout.countDocuments({ affiliateId });
+    return { payouts, total, page, limit };
+  }
+
+  /**
+   * Process payout (Admin only)
+   */
+  static async processPayout(payoutId: string, status: 'approved' | 'paid' | 'rejected', adminId: string, data?: any) {
+    const payout = await AffiliatePayout.findById(payoutId);
+    if (!payout) throw new ApiError(StatusCodes.NOT_FOUND, 'Payout request not found');
+
+    if (payout.status === 'paid') {
+      throw new ApiError(StatusCodes.BAD_REQUEST, 'Payout already paid');
+    }
+
+    payout.status = status;
+    payout.processedBy = adminId as any;
+    payout.processedAt = new Date();
+
+    if (status === 'rejected' && data?.reason) {
+      payout.rejectionReason = data.reason;
+    }
+
+    if (status === 'paid') {
+      payout.transactionProof = data?.proof;
+      // Update affiliate totalPaid
+      await Affiliate.findByIdAndUpdate(payout.affiliateId, {
+        $inc: { totalPaid: payout.amount }
+      });
+      
+      // Update related commissions to paid status
+      // Note: In a real system, we might want to link payouts to specific commissions.
+      // For now, we'll just mark the oldest pending commissions as paid up to the payout amount.
+      const pendingCommissions = await AffiliateCommission.find({
+        affiliateId: payout.affiliateId,
+        status: 'pending'
+      }).sort({ createdAt: 1 });
+
+      let remainingAmount = payout.amount;
+      for (const commission of pendingCommissions) {
+        if (remainingAmount >= commission.commissionAmount) {
+          commission.status = 'paid';
+          commission.paidAt = new Date();
+          await commission.save();
+          remainingAmount -= commission.commissionAmount;
+        } else {
+          break; // Stop if we can't fully pay the next commission
+        }
+      }
+    }
+
+    await payout.save();
+    return payout;
   }
 
   /**

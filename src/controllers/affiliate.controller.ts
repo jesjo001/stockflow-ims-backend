@@ -272,5 +272,93 @@ export class AffiliateController {
       ApiResponse.success(result, 'Invitation sent successfully')
     );
   });
+
+  /**
+   * Update bank details
+   */
+  static updateBankDetails = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user.affiliateId) {
+      throw new ApiError(StatusCodes.FORBIDDEN, 'You are not an affiliate');
+    }
+
+    const { bankName, accountName, accountNumber } = req.body;
+    if (!bankName || !accountName || !accountNumber) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, 'All bank details are required');
+    }
+
+    const affiliate = await AffiliateService.updateBankDetails(
+      (req.user.affiliateId as any).toString(),
+      { bankName, accountName, accountNumber }
+    );
+
+    res.status(StatusCodes.OK).json(
+      ApiResponse.success(affiliate, 'Bank details updated successfully')
+    );
+  });
+
+  /**
+   * Request payout
+   */
+  static requestPayout = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user.affiliateId) {
+      throw new ApiError(StatusCodes.FORBIDDEN, 'You are not an affiliate');
+    }
+
+    const { amount } = req.body;
+    if (!amount || amount <= 0) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, 'Valid payout amount is required');
+    }
+
+    const payout = await AffiliateService.requestPayout(
+      (req.user.affiliateId as any).toString(),
+      amount
+    );
+
+    res.status(StatusCodes.CREATED).json(
+      ApiResponse.success(payout, 'Payout requested successfully', StatusCodes.CREATED)
+    );
+  });
+
+  /**
+   * Get my payout history
+   */
+  static getMyPayoutHistory = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user.affiliateId) {
+      throw new ApiError(StatusCodes.FORBIDDEN, 'You are not an affiliate');
+    }
+
+    const { page = 1, limit = 20 } = req.query;
+    const result = await AffiliateService.getPayoutHistory(
+      (req.user.affiliateId as any).toString(),
+      { page: parseInt(page as string), limit: parseInt(limit as string) }
+    );
+
+    res.status(StatusCodes.OK).json(
+      ApiResponse.success(result, 'Payout history retrieved successfully')
+    );
+  });
+
+  /**
+   * Process payout (Super Admin only)
+   */
+  static processPayout = asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params as { id: string };
+    const { status, reason, proof } = req.body;
+
+    if (!['approved', 'paid', 'rejected'].includes(status)) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, 'Invalid status');
+    }
+
+    const payout = await AffiliateService.processPayout(
+      id,
+      status,
+      req.user._id.toString(),
+      { reason, proof }
+    );
+
+    res.status(StatusCodes.OK).json(
+      ApiResponse.success(payout, `Payout ${status} successfully`)
+    );
+  });
 }
 

@@ -17,11 +17,17 @@ router.post('/assign-to-user', authorize('super_admin'), AffiliateController.ass
 router.patch('/:id/commission', authorize('super_admin'), AffiliateController.updateCommission);
 router.post('/:id/deactivate', authorize('super_admin'), AffiliateController.deactivate);
 
+// Payout management (Super Admin)
+router.post('/payouts/:id/process', authorize('super_admin'), AffiliateController.processPayout);
+
 // Self-service endpoints (requires user to have affiliateId)
 router.get('/me/dashboard', AffiliateController.getMyDashboard);
 router.get('/me/referrals', AffiliateController.getMyReferrals);
 router.get('/me/commissions', AffiliateController.getMyCommissionHistory);
 router.post('/me/invite', AffiliateController.inviteUser);
+router.patch('/me/bank-details', AffiliateController.updateBankDetails);
+router.post('/me/payouts', AffiliateController.requestPayout);
+router.get('/me/payouts', AffiliateController.getMyPayoutHistory);
 
 // Specific affiliate endpoints (super admin can view any, affiliate can view own)
 router.get('/:id/dashboard', AffiliateController.getDashboard);

@@ -44,3 +44,11 @@ export const getSales = asyncHandler(async (req: Request, res: Response) => {
     page: result.page,
   }, 'Sales retrieved successfully'));
 });
+
+export const sendInvoice = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { email } = req.body;
+  
+  await SaleService.sendInvoice(id, req.user.tenantId.toString(), email);
+  res.status(StatusCodes.OK).json(ApiResponse.success(null, 'Invoice sent successfully'));
+});

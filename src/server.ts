@@ -6,6 +6,7 @@ import app from './app';
 import { connectDB } from './config/db';
 import { env } from './config/env';
 import { logger } from './config/logger';
+import { initJobs } from './jobs';
 
 const PORT = Number(env.PORT) || 5000;
 const numCPUs = os.cpus().length;
@@ -78,6 +79,7 @@ if (cluster.isPrimary && enableCluster) {
     });
 
     (global as any).io = io;
+    initJobs();
   });
 }
 

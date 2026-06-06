@@ -19,6 +19,7 @@ export interface ISettingsDocument extends Document {
   invoiceFooter?: string;
   invoiceAccentColor?: string;
   invoiceShowLogo?: boolean;
+  invoiceAutoSendEmail?: boolean;
   // Notifications
   notifyLowStock?: boolean;
   notifyNewOrder?: boolean;
@@ -45,6 +46,7 @@ const settingsSchema = new Schema<ISettingsDocument>(
     invoiceFooter: { type: String, default: 'Thank you for your business!' },
     invoiceAccentColor: { type: String, default: '#6366F1' },
     invoiceShowLogo: { type: Boolean, default: true },
+    invoiceAutoSendEmail: { type: Boolean, default: false },
     notifyLowStock: { type: Boolean, default: true },
     notifyNewOrder: { type: Boolean, default: true },
     notifyDailySummary: { type: Boolean, default: false },
