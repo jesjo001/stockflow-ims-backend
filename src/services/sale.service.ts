@@ -11,6 +11,24 @@ import { logger } from '../config/logger';
 import { StatusCodes } from 'http-status-codes';
 import mongoose from 'mongoose';
 import { startTransactionSession } from '../utils/mongoTransaction';
+import { PaymentService } from './payment.service';
+
+interface ShopCheckoutInput {
+  items: Array<{
+    product: string;
+    quantity: number;
+  }>;
+  customerEmail: string;
+  customerUserId?: string;
+  customerName?: string;
+  customerPhone?: string;
+  paymentMethod: 'card' | 'bank_transfer' | 'mobile_money';
+  currency?: string;
+  redirectUrl: string;
+  address?: string;
+  city?: string;
+  zip?: string;
+}
 
 export class SaleService {
   // Helper to conditionally apply session to queries
@@ -18,11 +36,25 @@ export class SaleService {
     return session ? query.session(session) : query;
   }
 
+  private static buildOrderNote(data: {
+    address?: string;
+    city?: string;
+    zip?: string;
+    note?: string;
+  }) {
+    const parts = [data.note, data.address, data.city, data.zip].filter(Boolean);
+    return parts.length > 0 ? parts.join(' | ') : undefined;
+  }
+
   static async createSale(data: any, userId: string, branchId: string, tenantId: string) {
     let session: mongoose.ClientSession | null = null;
     try {
       session = await startTransactionSession();
       const { customer, items, discountType, discountValue, paymentMethod, amountPaid } = data;
+      const saleSource = data.source === 'shop' ? 'shop' : 'pos';
+      const saleStatus = ['completed', 'draft', 'cancelled', 'returned'].includes(data.status)
+        ? data.status
+        : 'completed';
       
       let subtotal = 0;
       let taxAmount = 0;
@@ -133,6 +165,7 @@ export class SaleService {
       const sale = await Sale.create([{
         invoiceNumber,
         customer,
+        customerUserId: data.customerUserId,
         customerName: data.customerName,
         customerEmail: data.customerEmail,
         branch: branchId,
@@ -148,6 +181,9 @@ export class SaleService {
         change,
         paymentMethod,
         paymentStatus,
+        status: saleStatus,
+        source: saleSource,
+        note: data.note,
         soldBy: userId
       }], session ? { session } : {});
 
@@ -180,12 +216,164 @@ export class SaleService {
     }
   }
 
+  static async createPublicShopCheckout(data: ShopCheckoutInput) {
+    const uniqueProductIds = [...new Set(data.items.map((item) => item.product))];
+    const products = await Product.find({
+      _id: { $in: uniqueProductIds },
+      isVisible: true,
+      isActive: true,
+    }).select('tenantId branch createdBy name isVisible isActive').lean();
+
+    if (products.length !== uniqueProductIds.length) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, 'Some products are unavailable in the public shop');
+    }
+
+    const firstProduct = products[0];
+    if (!firstProduct) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, 'No valid products selected');
+    }
+
+    const sellerTenantId = firstProduct.tenantId.toString();
+    const sellerBranchId = firstProduct.branch.toString();
+    const sellerUserId = firstProduct.createdBy.toString();
+
+    const hasMixedSellers = products.some(
+      (product) =>
+        product.tenantId.toString() !== sellerTenantId ||
+        product.branch.toString() !== sellerBranchId
+    );
+
+    if (hasMixedSellers) {
+      throw new ApiError(
+        StatusCodes.BAD_REQUEST,
+        'Checkout supports one store at a time. Please complete separate orders for products from different stores.'
+      );
+    }
+
+    const note = this.buildOrderNote({
+      address: data.address,
+      city: data.city,
+      zip: data.zip,
+      note: 'Public shop checkout',
+    });
+
+    const sale = await this.createSale({
+      items: data.items,
+      discountType: 'fixed',
+      discountValue: 0,
+      paymentMethod: data.paymentMethod,
+      amountPaid: 0,
+      customerEmail: data.customerEmail,
+      customerUserId: data.customerUserId,
+      customerName: data.customerName,
+      note,
+      status: 'draft',
+      source: 'shop',
+    }, sellerUserId, sellerBranchId, sellerTenantId);
+
+    const payment = await PaymentService.initializePayment(
+      {
+        amount: sale.total,
+        currency: data.currency || 'NGN',
+        customerEmail: data.customerEmail,
+        customerPhone: data.customerPhone,
+        customerName: data.customerName,
+        redirectUrl: data.redirectUrl,
+        paymentMethod: data.paymentMethod,
+        meta: {
+          type: 'shop_checkout',
+          source: 'shop',
+          saleId: sale._id.toString(),
+        },
+      },
+      sellerTenantId,
+      sellerBranchId,
+      sellerUserId,
+      sale._id.toString()
+    );
+
+    return { sale, payment };
+  }
+
   static async getSales(filters: any, options: any, tenantId: string) {
     return await (Sale as any).paginate({ ...filters, tenantId }, {
       ...options,
       populate: ['customer', 'branch', 'soldBy', 'items.product'],
       sort: { createdAt: -1 }
     });
+  }
+
+  static async getPublicOrders(customerEmail: string) {
+    return await Sale.find({
+      customerEmail: customerEmail.trim().toLowerCase(),
+      source: 'shop',
+    })
+      .populate(['branch', 'items.product'])
+      .sort({ createdAt: -1 })
+      .lean();
+  }
+
+  static async getOrdersForCustomer(userId: string, tenantId: string) {
+    return await Sale.find({
+      tenantId,
+      source: 'shop',
+      customerUserId: userId,
+    })
+      .populate(['branch', 'items.product'])
+      .sort({ createdAt: -1 })
+      .lean();
+  }
+
+  static async markSalePaid(saleId: string, amountPaid: number) {
+    await Sale.findByIdAndUpdate(saleId, {
+      paymentStatus: 'paid',
+      amountPaid,
+      status: 'completed',
+    });
+  }
+
+  static async cancelSaleAndRestoreStock(saleId: string) {
+    const sale = await Sale.findById(saleId);
+    if (!sale || sale.status === 'cancelled') {
+      return;
+    }
+
+    for (const item of sale.items) {
+      let stock = await StockLevel.findOne({
+        product: item.product,
+        branch: sale.branch,
+        tenantId: sale.tenantId,
+      });
+
+      if (!stock) {
+        stock = await StockLevel.create({
+          product: item.product,
+          branch: sale.branch,
+          tenantId: sale.tenantId,
+          quantity: 0,
+        });
+      }
+
+      const previousQty = stock.quantity;
+      stock.quantity += item.quantity;
+      stock.lastUpdated = new Date();
+      await stock.save();
+
+      await StockMovement.create({
+        product: item.product,
+        branch: sale.branch,
+        tenantId: sale.tenantId,
+        type: 'adjustment',
+        quantity: item.quantity,
+        previousQty,
+        newQty: stock.quantity,
+        reference: `SALE_CANCEL:${sale.invoiceNumber}`,
+        createdBy: sale.soldBy,
+      });
+    }
+
+    sale.status = 'cancelled';
+    await sale.save();
   }
 
   /**

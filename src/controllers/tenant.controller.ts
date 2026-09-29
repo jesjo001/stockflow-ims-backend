@@ -42,6 +42,33 @@ export const getAllTenants = asyncHandler(async (req: Request, res: Response) =>
   );
 });
 
+export const getActiveTenants = asyncHandler(async (req: Request, res: Response) => {
+  const { page = 1, limit = 50 } = req.query;
+
+  const result = await Tenant.paginate(
+    { isActive: true },
+    {
+      page: Number(page),
+      limit: Number(limit),
+      sort: { createdAt: -1 },
+      select: 'name email phone address city country isActive',
+    }
+  );
+
+  res.status(StatusCodes.OK).json(
+    ApiResponse.success(
+      {
+        docs: result.docs.map((tenant: any) => tenant.toJSON()),
+        totalDocs: result.totalDocs,
+        limit: result.limit,
+        totalPages: result.totalPages,
+        page: result.page,
+      },
+      'Public tenants retrieved successfully'
+    )
+  );
+});
+
 export const getTenantById = asyncHandler(async (req: Request, res: Response) => {
   const tenant = await Tenant.findById(req.params.id);
   if (!tenant) {

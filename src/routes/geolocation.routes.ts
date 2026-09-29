@@ -36,7 +36,7 @@ router.get('/detect', async (req: Request, res: Response) => {
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const data = await response.json() as { countryCode?: string };
         countryCode = data.countryCode?.toUpperCase();
         detectionMethod = 'ip-api.com';
       }
@@ -52,7 +52,7 @@ router.get('/detect', async (req: Request, res: Response) => {
         });
 
         if (response.ok) {
-          const data = await response.json();
+          const data = await response.json() as { country_code?: string };
           countryCode = data.country_code?.toUpperCase();
           detectionMethod = 'geolocation-db.com';
         }
@@ -72,7 +72,7 @@ router.get('/detect', async (req: Request, res: Response) => {
         });
 
         if (response.ok) {
-          const data = await response.json();
+          const data = await response.json() as { country?: { iso_code?: string } };
           countryCode = data.country?.iso_code?.toUpperCase();
           detectionMethod = 'maxmind';
         }

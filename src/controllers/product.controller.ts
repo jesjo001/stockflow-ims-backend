@@ -109,6 +109,18 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
   }, 'Products retrieved successfully'));
 });
 
+export const getPublicProducts = asyncHandler(async (req: Request, res: Response) => {
+  const { page = 1, limit = 24, ...filters } = req.query;
+  const result = await ProductService.getPublicProducts(filters, { page: Number(page), limit: Number(limit) });
+
+  res.status(StatusCodes.OK).json(ApiResponse.paginated(result.docs, {
+    totalDocs: result.totalDocs,
+    limit: result.limit,
+    totalPages: result.totalPages,
+    page: result.page,
+  }, 'Public products retrieved successfully'));
+});
+
 export const getProduct = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = req.user?.tenantId?.toString() || req.tenantId?.toString();
   const product = await ProductService.getProductById(String(req.params.id), tenantId);

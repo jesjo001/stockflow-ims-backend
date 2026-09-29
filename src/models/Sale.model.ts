@@ -14,6 +14,7 @@ export interface ISaleDocument extends Document {
   tenantId: Types.ObjectId;
   invoiceNumber: string;
   customer?: Types.ObjectId;
+  customerUserId?: Types.ObjectId;
   customerName?: string;
   customerEmail?: string;
   branch: Types.ObjectId;
@@ -26,17 +27,21 @@ export interface ISaleDocument extends Document {
   total: number;
   amountPaid: number;
   change: number;
-  paymentMethod: 'cash' | 'card' | 'mobile_money' | 'credit' | 'mixed';
+  paymentMethod: 'cash' | 'card' | 'mobile_money' | 'bank_transfer' | 'credit' | 'mixed';
   paymentStatus: 'paid' | 'partial' | 'credit' | 'refunded';
   status: 'completed' | 'draft' | 'cancelled' | 'returned';
+  source: 'pos' | 'shop';
   note?: string;
   soldBy: Types.ObjectId;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 const saleSchema = new Schema<ISaleDocument>({
   tenantId: { type: Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
   invoiceNumber: { type: String, required: true, unique: true },
   customer: { type: Schema.Types.ObjectId, ref: 'Customer' },
+  customerUserId: { type: Schema.Types.ObjectId, ref: 'User', index: true },
   customerName: { type: String },
   customerEmail: { type: String, lowercase: true, trim: true },
   branch: { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
@@ -58,7 +63,7 @@ const saleSchema = new Schema<ISaleDocument>({
   change: { type: Number, default: 0 },
   paymentMethod: { 
     type: String, 
-    enum: ['cash', 'card', 'mobile_money', 'credit', 'mixed'],
+    enum: ['cash', 'card', 'mobile_money', 'bank_transfer', 'credit', 'mixed'],
     required: true
   },
   paymentStatus: { 
@@ -70,6 +75,12 @@ const saleSchema = new Schema<ISaleDocument>({
     type: String, 
     enum: ['completed', 'draft', 'cancelled', 'returned'],
     default: 'completed'
+  },
+  source: {
+    type: String,
+    enum: ['pos', 'shop'],
+    default: 'pos',
+    index: true,
   },
   note: String,
   soldBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
@@ -85,6 +96,7 @@ const saleSchema = new Schema<ISaleDocument>({
 });
 
 saleSchema.index({ branch: 1, createdAt: -1 });
+saleSchema.index({ tenantId: 1, source: 1, createdAt: -1 });
 
 saleSchema.plugin(paginate);
 

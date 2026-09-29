@@ -99,6 +99,64 @@ export class ProductService {
     return { ...result, docs: productsWithStock };
   }
 
+  static async getPublicProducts(filters: any, options: any) {
+    const { search, category, branch, tenantId } = filters;
+    const publicFilters: any = {
+      isVisible: true,
+      isActive: true,
+    };
+
+    if (category) {
+      publicFilters.category = category;
+    }
+
+    if (branch) {
+      publicFilters.branch = branch;
+    }
+
+    if (tenantId) {
+      publicFilters.tenantId = tenantId;
+    }
+
+    if (search) {
+      const searchRegex = new RegExp(search, 'i');
+      publicFilters.$or = [
+        { name: searchRegex },
+        { sku: searchRegex },
+        { barcode: searchRegex },
+      ];
+    }
+
+    const result = await (Product as any).paginate(publicFilters, {
+      ...options,
+      populate: [
+        { path: 'category', select: 'name slug' },
+        { path: 'branch', select: 'name address city' },
+        { path: 'tenantId', select: 'name city country isActive' },
+      ],
+      sort: { createdAt: -1 },
+      lean: true,
+    });
+
+    const productsWithStock = await Promise.all(
+      result.docs.map(async (product: any) => {
+        const stockLevel = await StockLevel.findOne({
+          product: product._id,
+          branch: product.branch?._id || product.branch,
+          tenantId: product.tenantId?._id || product.tenantId,
+        }).lean();
+
+        return {
+          ...product,
+          stock: stockLevel?.quantity || 0,
+          status: this.getStockStatus(stockLevel?.quantity || 0, product.reorderPoint),
+        };
+      })
+    );
+
+    return { ...result, docs: productsWithStock };
+  }
+
   static async getProductById(id: string, tenantId?: string) {
     const cacheKey = `product_${id}_${tenantId || 'public'}`;
     const cachedProduct = await cache.get(cacheKey);

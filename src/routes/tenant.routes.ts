@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { protect } from '../middleware/auth.middleware';
 import { authorize } from '../middleware/rbac.middleware';
 import {
+  getActiveTenants,
   getAllTenants,
   getTenantById,
   updateTenant,
@@ -10,6 +11,8 @@ import {
 } from '../controllers/tenant.controller';
 
 const router = Router();
+
+router.get('/public', getActiveTenants);
 
 // All tenant routes require authentication
 router.use(protect);

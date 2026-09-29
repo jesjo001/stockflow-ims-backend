@@ -12,6 +12,7 @@ router.post('/webhook', PaymentController.handleWebhook);
 
 // Public callback endpoint for Flutterwave redirect
 router.get('/callback', PaymentController.handleCallback);
+router.get('/public/verify-ref/:txRef', PaymentController.verifyPublicPaymentByRef);
 
 // Protected routes
 router.use(protect);
