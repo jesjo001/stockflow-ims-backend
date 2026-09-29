@@ -4,10 +4,10 @@
     "rootDir": "src",
     "outDir": "dist",
     "module": "commonjs",
-    "moduleResolution": "node",
+    "moduleResolution": "node10",
     "target": "es2021",
-    "lib": ["es2021"],
-    "types": ["node", "jest"],
+    "lib": ["es2021", "es2022.error"],
+    "types": ["node"],
     "sourceMap": true,
     "declaration": false,
     "declarationMap": false,
@@ -17,5 +17,6 @@
     "skipLibCheck": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true
-  }
+  },
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts", "src/tests"]
 }

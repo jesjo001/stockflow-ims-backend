@@ -62,6 +62,6 @@ export const deleteImage = async (fileKey: string): Promise<void> => {
     console.log(`File deleted successfully: ${fileKey}`);
   } catch (error) {
     console.error("Error deleting file:", error);
-    throw new Error("Failed to delete image");
+    throw new Error("Failed to delete image", { cause: error });
   }
 };
