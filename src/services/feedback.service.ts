@@ -4,6 +4,7 @@ import { StatusCodes } from 'http-status-codes';
 import { emailService } from '../utils/email';
 import { User } from '../models/User.model';
 import { logger } from '../config/logger';
+import mongoose from 'mongoose';
 
 export class FeedbackService {
   /**
@@ -186,7 +187,7 @@ export class FeedbackService {
   static async getFeedbackStats(tenantId: string): Promise<any> {
     try {
       const stats = await Feedback.aggregate([
-        { $match: { tenantId: require('mongoose').Types.ObjectId(tenantId) } },
+        { $match: { tenantId: new mongoose.Types.ObjectId(tenantId) } },
         {
           $group: {
             _id: null,

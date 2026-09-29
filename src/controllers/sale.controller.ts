@@ -36,7 +36,7 @@ export const getSales = asyncHandler(async (req: Request, res: Response) => {
   // Only super_admin, admin, and facility_manager can specify a different branch
   const canSwitchBranch = req.user?.role === 'super_admin' || req.user?.role === 'admin' || req.user?.role === 'facility_manager';
   
-  let queryFilters: any = { ...filters };
+  const queryFilters: any = { ...filters };
   if (branch && canSwitchBranch) {
     queryFilters.branch = branch;
   } else if (req.user?.branch) {

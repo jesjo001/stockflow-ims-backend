@@ -36,7 +36,7 @@ const feedbackSchema = new Schema<IFeedbackDocument>(
       required: true, 
       lowercase: true,
       trim: true,
-      match: /.+\@.+\..+/ // Basic email validation
+      match: /.+@.+\..+/ // Basic email validation
     },
     subject: { 
       type: String, 
