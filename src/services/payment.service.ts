@@ -6,6 +6,7 @@ import { ApiError } from '../utils/ApiError';
 import { StatusCodes } from 'http-status-codes';
 import { env } from '../config/env';
 import crypto from 'crypto';
+import { SaleService } from './sale.service';
 
 // Flutterwave API configuration
 const FLUTTERWAVE_BASE_URL = 'https://api.flutterwave.com/v3';
@@ -188,10 +189,11 @@ export class PaymentService {
 
       // Update associated sale payment status if payment is successful
       if (payment.status === 'success' && payment.sale) {
-        await Sale.findByIdAndUpdate(payment.sale, {
-          paymentStatus: 'paid',
-          amountPaid: payment.amount,
-        });
+        await SaleService.markSalePaid(payment.sale.toString(), payment.amount);
+      }
+
+      if ((payment.status === 'failed' || payment.status === 'cancelled') && payment.sale) {
+        await SaleService.cancelSaleAndRestoreStock(payment.sale.toString());
       }
 
       return payment;
@@ -237,10 +239,11 @@ export class PaymentService {
 
       // Update associated sale payment status if payment is successful
       if (payment.status === 'success' && payment.sale) {
-        await Sale.findByIdAndUpdate(payment.sale, {
-          paymentStatus: 'paid',
-          amountPaid: payment.amount,
-        });
+        await SaleService.markSalePaid(payment.sale.toString(), payment.amount);
+      }
+
+      if ((payment.status === 'failed' || payment.status === 'cancelled') && payment.sale) {
+        await SaleService.cancelSaleAndRestoreStock(payment.sale.toString());
       }
 
       // Process affiliate commission if successful
@@ -403,13 +406,13 @@ export class PaymentService {
           payment.status = 'success';
           // Update sale if associated
           if (payment.sale) {
-            await Sale.findByIdAndUpdate(payment.sale, {
-              paymentStatus: 'paid',
-              amountPaid: data.amount,
-            });
+            await SaleService.markSalePaid(payment.sale.toString(), data.amount || payment.amount);
           }
         } else if (data.status === 'failed') {
           payment.status = 'failed';
+          if (payment.sale) {
+            await SaleService.cancelSaleAndRestoreStock(payment.sale.toString());
+          }
         }
 
         await payment.save();

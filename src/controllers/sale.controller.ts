@@ -23,6 +23,13 @@ export const createSale = asyncHandler(async (req: Request, res: Response) => {
   res.status(StatusCodes.CREATED).json(ApiResponse.success(sale, 'Sale completed successfully', StatusCodes.CREATED));
 });
 
+export const createPublicShopCheckout = asyncHandler(async (req: Request, res: Response) => {
+  const result = await SaleService.createPublicShopCheckout(req.body);
+  res.status(StatusCodes.CREATED).json(
+    ApiResponse.success(result, 'Shop checkout initialized successfully', StatusCodes.CREATED)
+  );
+});
+
 export const getSales = asyncHandler(async (req: Request, res: Response) => {
   const { page = 1, limit = 10, branch, ...filters } = req.query;
   
@@ -45,8 +52,23 @@ export const getSales = asyncHandler(async (req: Request, res: Response) => {
   }, 'Sales retrieved successfully'));
 });
 
+export const getPublicOrders = asyncHandler(async (req: Request, res: Response) => {
+  const email = String(req.query.email || '').trim();
+  if (!email) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'Email is required');
+  }
+
+  const orders = await SaleService.getPublicOrders(email);
+  res.status(StatusCodes.OK).json(ApiResponse.success(orders, 'Orders retrieved successfully'));
+});
+
+export const getMyOrders = asyncHandler(async (req: Request, res: Response) => {
+  const orders = await SaleService.getOrdersForCustomer(req.user._id.toString(), req.user.tenantId.toString());
+  res.status(StatusCodes.OK).json(ApiResponse.success(orders, 'Orders retrieved successfully'));
+});
+
 export const sendInvoice = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = String(req.params.id);
   const { email } = req.body;
   
   await SaleService.sendInvoice(id, req.user.tenantId.toString(), email);

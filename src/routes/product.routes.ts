@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createProduct, getProducts, getProduct, updateProduct, deleteProduct, uploadImages, getSignedUrl, getViewSignedUrl, toggleVisibility } from '../controllers/product.controller';
+import { createProduct, getProducts, getPublicProducts, getProduct, updateProduct, deleteProduct, uploadImages, getSignedUrl, getViewSignedUrl, toggleVisibility } from '../controllers/product.controller';
 import { validate } from '../middleware/validate.middleware';
 import { createProductSchema, updateProductSchema } from '../validators/product.validator';
 import { protect } from '../middleware/auth.middleware';
@@ -9,8 +9,7 @@ import { upload } from '../middleware/fileUpload.middleware';
 const router = Router();
 
 // Public routes for reading VISIBLE products only (no auth required) - placed first
-router.get('/public', getProducts);
-router.get('/:id', getProduct);
+router.get('/public', getPublicProducts);
 
 // Protected routes - all mutations require auth
 router.use(protect);

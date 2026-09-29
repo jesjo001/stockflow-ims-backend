@@ -60,6 +60,15 @@ export class PaymentController {
     );
   });
 
+  static verifyPublicPaymentByRef = asyncHandler(async (req: Request, res: Response) => {
+    const { txRef } = req.params;
+    const payment = await PaymentService.verifyPaymentByRef(txRef as string);
+
+    return res.status(StatusCodes.OK).json(
+      ApiResponse.success(payment, 'Payment verified successfully')
+    );
+  });
+
   /**
    * Process a refund
    */

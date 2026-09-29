@@ -5,6 +5,7 @@
   "scripts": {
     "start": "node --max-old-space-size=512 --require ./dist/undici-patch.js dist/server.js",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "build": "tsc -p tsconfig.json",
     "test": "jest",
     "lint": "eslint . --ext .ts",
     "swagger": "ts-node src/swagger.ts"
