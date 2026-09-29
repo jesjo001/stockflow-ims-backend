@@ -3,6 +3,7 @@ import { Settings } from '../models/Settings.model';
 import { User } from '../models/User.model';
 import { Tenant } from '../models/Tenant.model';
 import { Notification } from '../models/Notification.model';
+import { Sale } from '../models/Sale.model';
 import { ReportService } from '../services/report.service';
 import { emailService } from '../utils/email';
 import { logger } from '../config/logger';
@@ -98,8 +99,6 @@ async function processSalesSummary(startDate: Date, endDate: Date, periodStr: st
 }
 
 async function calculateRangeSummary(tenantId: any, startDate: Date, endDate: Date) {
-  const { Sale } = await import('../models/Sale.model');
-  
   const match = {
     tenantId,
     status: 'completed',
